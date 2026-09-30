@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stations d'échantillonnage</title>
+
+<script>
+/* ============================================================
+   CONFIGURATION
+   Planches d'herbier : place les scans dans un dossier "planches"
+   à côté de ce fichier HTML, nommés d'après le Code HG
+   (ex. planches/HG1234.jpg). Ou utilise le bouton
+   « Dossier des planches » pour choisir un dossier n'importe où.
+   ============================================================ */
+const CONFIG = {
+  title: "Stations d'échantillonnage",
+  // Fichier de données chargé automatiquement quand la page est hébergée en ligne
+  dataFile: "donnees.csv",
+  planchesDir: "planches/",
+  extensions: [".jpg", ".jpeg", ".png", ".webp", ".JPG", ".JPEG", ".PNG"],
+  disableClusteringAtZoom: 13
+};
+</script>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Source+Serif+4:ital,opsz,wght@0,8..60,500;0,8..60,600;1,8..60,400;1,8..60,500&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --ink: #17262E; --ink-soft: #4F5F66; --paper: #F3F6F5; --panel: #FFFFFF; --line: #D5DEDC; --sea: #1F5E73;
+  --red: #B23A48; --brown: #9C6B1E; --green: #3F8A4F; --cyan: #2A7F8F; --other: #7A868C;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --ink: #E3EAEC; --ink-soft: #A3B1B6; --paper: #142027; --panel: #1B2A32; --line: #2E3F47; --sea: #7FB7C9; }
+}
+*, *::before, *::after { box-sizing: inherit; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--sans); }
+[hidden] { display: none !important; }
+
+.app { display: grid; grid-template-columns: 350px 1fr; height: 100%; }
+#map { height: 100%; background: #2b4a57; }
+
+aside { background: var(--paper); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.head { padding: 20px 20px 12px; }
+h1 { font: 600 1.45rem/1.15 var(--serif); margin: 0 0 4px; letter-spacing: -0.01em; }
+.status { color: var(--ink-soft); font-size: 0.87rem; margin: 0; }
+.status.err { color: var(--red); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 0.8rem; color: var(--ink-soft); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+
+.scroll { overflow-y: auto; padding: 0 20px 20px; flex: 1; }
+.block { padding: 14px 0; border-top: 1px solid var(--line); }
+.block h2 { font: 600 0.92rem var(--sans); margin: 0 0 8px; display: flex; justify-content: space-between; align-items: baseline; }
+.linkbtn { font: 400 0.8rem var(--sans); color: var(--sea); background: none; border: 0; padding: 0; cursor: pointer; }
+
+input[type=search], select, input[type=number] {
+  width: 100%; font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px;
+}
+select:disabled { opacity: .55; }
+.field { margin-bottom: 8px; }
+.field label, .row2 label { font-size: 0.8rem; color: var(--ink-soft); display: block; margin-bottom: 2px; }
+.field select.on { border-color: var(--sea); box-shadow: inset 3px 0 0 var(--sea); }
+.facet { border: 1px solid var(--line); border-radius: 8px; background: var(--panel); margin-bottom: 6px; }
+.facet summary { list-style: none; cursor: pointer; padding: 7px 10px; display: flex; gap: 8px; align-items: baseline; }
+.facet summary::-webkit-details-marker { display: none; }
+.facet summary::after { content: "▾"; color: var(--ink-soft); font-size: 0.8rem; }
+.facet[open] summary::after { content: "▴"; }
+.facet .fl { font-weight: 500; font-size: 0.9rem; flex: none; }
+.facet .fs { flex: 1; min-width: 0; color: var(--ink-soft); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+.facet.on { border-color: var(--sea); }
+.facet.on .fs { color: var(--sea); font-weight: 500; }
+.fbody { padding: 0 10px 8px; }
+.fbody .ff { padding: 5px 8px; font-size: 0.85rem; margin-bottom: 4px; }
+.fopts { max-height: 230px; overflow-y: auto; }
+.fopts label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; font-size: 0.88rem; }
+.fopts .sw { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.fopts .n { margin-left: auto; color: var(--ink-soft); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+.fopts .it { font-family: var(--serif); font-style: italic; }
+.factions { display: flex; gap: 12px; padding-top: 4px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.drop {
+  margin-top: 6px; border: 1.5px dashed var(--line); border-radius: 10px; padding: 22px 16px; text-align: center; color: var(--ink-soft);
+}
+.drop strong { display: block; color: var(--ink); font-weight: 600; margin-bottom: 6px; }
+body.dragging .drop, body.dragging #map { outline: 3px dashed var(--sea); outline-offset: -8px; }
+
+.stations { list-style: none; margin: 0; padding: 0; }
+.stations li button {
+  width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0;
+  padding: 7px 6px; border-radius: 6px; cursor: pointer; display: flex; gap: 8px; align-items: baseline;
+}
+.stations li button:hover { background: var(--panel); }
+.stations .nm { flex: 1; }
+.sub { color: var(--ink-soft); font-size: 0.8rem; }
+.stations .n { color: var(--ink-soft); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+
+.foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: 500 0.85rem var(--sans); color: var(--sea); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+.btn.primary { background: var(--sea); color: #fff; border-color: var(--sea); }
+.btn input { display: none; }
+button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-within { outline: 2px solid var(--sea); outline-offset: 2px; }
+
+/* Marqueurs */
+.ring { border-radius: 50%; display: grid; place-items: center; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0,0,0,.35); }
+.ring span { background: #fff; color: #17262E; border-radius: 50%; display: grid; place-items: center; font: 600 10.5px/1 var(--sans); font-variant-numeric: tabular-nums; }
+.leaflet-div-icon.plain { background: none; border: 0; }
+
+/* Popups */
+.leaflet-popup-content { margin: 12px 14px; font: 13.5px/1.4 var(--sans); color: #17262E; }
+.pp h3 { font: 600 1.05rem/1.2 var(--serif); margin: 0 0 2px; }
+.pp .coord { color: #4F5F66; font-size: 0.8rem; margin-bottom: 8px; }
+.pp ul { list-style: none; margin: 0; padding: 0; }
+.pp li { padding: 7px 0 7px 14px; border-top: 1px solid #E3E9E8; position: relative; }
+.pp li::before { content: ""; position: absolute; left: 0; top: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.pp .sp { display: flex; gap: 8px; align-items: flex-start; }
+.pp .txt { flex: 1; min-width: 0; }
+.pp .tx { font-family: var(--serif); }
+.pp .tx i { font-style: italic; font-weight: 500; }
+.pp .au { color: #4F5F66; }
+.pp .meta { color: #4F5F66; font-size: 0.8rem; }
+.pp .rem { font-size: 0.8rem; margin-top: 2px; }
+.pp a { color: #1F5E73; font-size: 0.8rem; }
+.hg { flex: none; font: 500 0.75rem/1 var(--mono); background: #E8EFEE; color: #17262E; border-radius: 4px; padding: 4px 6px; white-space: nowrap; }
+.hg.hg-h { background: #F7A592; }
+.hg.hbt { background: #E6E0DF; }
+.hg small { font: 600 0.62rem var(--sans); color: #4F5F66; margin-right: 3px; letter-spacing: .04em; }
+.thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.th { padding: 0; border: 1px solid #D5DEDC; border-radius: 4px; background: #F3F6F5; cursor: zoom-in; width: 58px; height: 78px; overflow: hidden; }
+.th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Visionneuse de planches */
+#lb { position: fixed; inset: 0; z-index: 3000; background: rgba(8,16,20,.94); display: grid; grid-template-rows: auto 1fr auto; color: #E3EAEC; }
+#lb .bar { display: flex; justify-content: space-between; align-items: center; padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px; gap: 10px; }
+#lb .cap { font-size: 0.9rem; }
+#lb .cap i { font-family: var(--serif); font-size: 1.05rem; }
+#lb .stage { overflow: auto; display: grid; place-items: center; min-height: 0; }
+#lb .stage img { max-width: 100%; max-height: 100%; cursor: zoom-in; display: block; }
+#lb .stage.zoom { place-items: start; }
+#lb .stage.zoom img { max-width: none; max-height: none; cursor: zoom-out; }
+#lb .nav { display: flex; justify-content: center; gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
+#lb button { font: 500 0.9rem var(--sans); color: #E3EAEC; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 6px; padding: 7px 14px; cursor: pointer; }
+#lb button:disabled { opacity: .35; cursor: default; }
+
+.toggle { display: none; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  aside {
+    position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0; height: 75%;
+    border-right: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0;
+    transform: translateY(100%); transition: transform .25s ease; padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  aside.open { transform: none; }
+  .toggle {
+    display: block; position: fixed; z-index: 1001; left: 12px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    font: 600 0.9rem var(--sans); background: var(--panel); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 20px; padding: 9px 16px; box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) { aside { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="panel">
+    <div class="head">
+      <h1>Stations d'échantillonnage</h1>
+      <p class="status" id="status">Aucun fichier chargé.</p>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="scroll">
+      <div class="block" id="welcome">
+        <div class="drop">
+          <strong>Ouvre ton fichier CSV</strong>
+          Exporte ton tableur en CSV, puis choisis-le avec le bouton ci-dessous ou glisse-le sur la carte.
+          <div style="margin-top:12px"><label class="btn primary">Choisir le fichier CSV<input type="file" accept=".csv,text/csv" class="csvInput"></label></div>
+        </div>
+      </div>
+
+      <div id="filters" hidden>
+        <div class="block">
+          <input type="search" id="q" placeholder="Taxon, site, code HG…" aria-label="Rechercher">
+        </div>
+        <div class="block">
+          <h2>Taxonomie <button class="linkbtn" id="resetTax">réinitialiser</button></h2>
+          <div id="tax"></div>
+        </div>
+        <div class="block">
+          <h2>Lieu et période</h2>
+          <div id="paysFacet"></div>
+          <div class="row2">
+            <div><label for="y0">Année, de</label><input type="number" id="y0" inputmode="numeric"></div>
+            <div><label for="y1">à</label><input type="number" id="y1" inputmode="numeric"></div>
+          </div>
+        </div>
+        <div class="block">
+          <h2>Stations <button class="linkbtn" id="fit">tout afficher</button></h2>
+          <ul class="stations" id="stations"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <label class="btn">Ouvrir un CSV<input type="file" accept=".csv,text/csv" class="csvInput"></label>
+      <label class="btn" id="dirBtn"><span id="dirLabel">Dossier des planches</span><input type="file" id="dir" webkitdirectory multiple></label>
+    </div>
+  </aside>
+  <div id="map"></div>
+</div>
+<button class="toggle" id="toggle" aria-controls="panel" aria-expanded="false">Filtres et stations</button>
+
+<div id="lb" hidden role="dialog" aria-modal="true" aria-label="Planche d'herbier">
+  <div class="bar"><div class="cap" id="lbCap"></div><button id="lbClose">Fermer</button></div>
+  <div class="stage" id="lbStage"><img id="lbImg" alt=""></div>
+  <div class="nav"><button id="lbPrev">Précédente</button><button id="lbNext">Suivante</button></div>
+</div>
+
+<!-- Données intégrées (optionnel) : colle ici le contenu du CSV pour une page autonome -->
+<script type="text/csv" id="embedded-data">
+species_id Algaebase,Class,Ordre,Famille,Genre,Espèce,Authorités,Date,Date2,Pays,Site,Profondeur,Latitude,Longitude,Recolte,Identification,Code,Remarques,,Lat_dec,Long_dec
+21470,Ulvophyceae,Bryopsidales,Caulerpaceae,Caulerpa,cylindracea,Sonder,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Thouroude B.,HG01,,,43.328111,5.097806
+814,Phaeophyceae,Fucales,Sargassaceae,Cystoseira,compressa,(Esper) Gerloff & Nizamuddin,12 September 2025,12 September 2025,France,Sausset les pins,0.1,"43°19′41,2″N","5°5′52,1″E",Blanfuné A.,Blanfuné A.,HG02,,,43.328111,5.097806
+177545,Phaeophyceae,Fucales,Sargassaceae,Ericaria,amentacea,(C.Agardh) Molinari & Guiry,12 September 2025,12 September 2025,France,Sausset les pins,0.1,"43°19′41,2″N","5°5′52,1″E",Blanfuné A.,Blanfuné A.,HG03,,,43.328111,5.097806
+791,Florideophyceae,Ceramiales,Rhodomelaceae,Polysiphonia,flocculosa,(C.Agardh) Endlicher,12 September 2025,12 September 2025,France,Sausset les pins,0.2,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.","Verlaque M., Boudouresque C.-F.",HG04,,,43.328111,5.097806
+168,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,obtusa-rouge,(Hudson) J.V.Lamouroux,12 September 2025,12 September 2025,France,Sausset les pins,3,"43°19′41,2″N","5°5′52,1″E",Thouroude B.,Verlaque M.,HG05,,,43.328111,5.097806
+168,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,obtusa-orange,(Hudson) J.V.Lamouroux,12 September 2025,12 September 2025,France,Sausset les pins,3,"43°19′41,2″N","5°5′52,1″E",Verlaque M.,Verlaque M.,HG06,,,43.328111,5.097806
+40,Ulvophyceae,Ulvales,Ulvaceae,Ulva,rigida,C.Agardh,12 September 2025,12 September 2025,France,Sausset les pins,1,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Verlaque M.,HG07,,,43.328111,5.097806
+19273,Ulvophyceae,Cladophorales,Cladophoraceae,Chaetomorpha,ligustica,(Kützing) Kützing,12 September 2025,12 September 2025,France,Sausset les pins,0,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Verlaque M.,HG08,,,43.328111,5.097806
+354,Florideophyceae,Peyssonneliales,Peyssonneliaceae,Peyssonnelia,squamaria,(S.G.Gmelin) Decaisne ex J.Agardh,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Verlaque M.,HG09,,,43.328111,5.097806
+123,Florideophyceae,Gigartinales,Sphaerococcaceae,Sphaerococcus,coronopifolius,Stackhouse,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Thouroude B.,HG10,,,43.328111,5.097806
+243,Ulvophyceae,Bryopsidales,Codiaceae,Codium,vermilara,(Olivi) Delle Chiaje,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Verlaque M.,HG11,,,43.328111,5.097806
+1140,Ulvophyceae,Bryopsidales,Codiaceae,Codium,effusum,(Rafinesque) Delle Chiaje,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Verlaque M.,HG12,,,43.328111,5.097806
+349,Florideophyceae,Gigartinales,Cystocloniaceae,Hypnea,musciformis,(Wulfen) J.V. Lamouroux,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Verlaque M.,HG13,,,43.328111,5.097806
+45,Ulvophyceae,Bryopsidales,Codiaceae,Codium,bursa,(Linnaeus) C.Agardh,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Thouroude B.,HG14,,,43.328111,5.097806
+177533,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei var tenuior,(Ercegović) Molinari & Guiry,11 September 2025,11 September 2025,France,"Pierre à Joseph, Plane Island, Marseille",15,"43°11′7,2″N","5°23′22,1″E",Thibaut T.,Thibaut T.,HG15,,,43.185333,5.389472
+1223,Ulvophyceae,Bryopsidales,Halimedaceae,Halimeda,tuna,(J.Ellis & Solander) J.V.Lamouroux,22 September 2025,22 September 2025,France,"Caramassaigne, Riou Island, Marseille",15,"43°10′26,1″N","5°23′55,1″E",Thouroude B.,Thouroude B.,HG16,,,43.173917,5.398639
+14583,Ulvophyceae,Bryopsidales,Halimedaceae,Flabellia,petiolata,(Turra) Nizamuddin,22 September 2025,22 September 2025,France,"Caramassaigne, Riou Island, Marseille",15,"43°10′26,1″N","5°23′55,1″E",Thouroude B.,Thouroude B.,HG17,,,43.173917,5.398639
+1625,Florideophyceae,Nemastomatales,Nemastomataceae,Predaea,ollivieri,Feldmann,22 September 2025,22 September 2025,France,"Caramassaigne, Riou Island, Marseille",15,"43°10′26,1″N","5°23′55,1″E",Thouroude B.,Verlaque M.,HG18,,,43.173917,5.398639
+61,Phaeophyceae,Dictyotales,Dictyotaceae,Padina,pavonica,(Linnaeus) Thivy,22 September 2025,22 September 2025,France,"Caramassaigne, Riou Island, Marseille",30,"43°10′26,1″N","5°23′55,1″E",Thouroude B.,Verlaque M.,HG19,,,43.173917,5.398639
+63,Phaeophyceae,Sporochnales,Sporochnaceae,Carpomitra,costata,(Feldmann) Feldmann,22 September 2025,22 September 2025,France,"Caramassaigne, Riou Island, Marseille",15,"43°10′26,1″N","5°23′55,1″E",Thibaut T.,Thibaut T.,HG20,,,43.173917,5.398639
+926,Phaeophyceae,Tilopteridales,Phyllariaceae,Phyllariopsis,brevipes,(C.Agardh) E.C.Henry & G.R.South,26 September 2025,26 September 2025,France,"Veyron, Marseille",35,"43°12′25,0″N","5°15′12,4″E","Thibaut T., Thouroude B.",Thouroude B.,HG21,,,43.206944,5.253444
+1613,Florideophyceae,Peyssonneliales,Peyssonneliaceae,Peyssonnelia,bornetii,Boudouresque & Denizot,26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E","Thibaut T., Thouroude B.",Boudouresque C.-F.,HG22,,,43.206944,5.253444
+12624,Phaeophyceae,Sphacelariales,Stypocaulaceae,Halopteris,scoparia,(Linnaeus) Sauvageau,26 September 2025,26 September 2025,France,"Planier, Marseille",0.5,"43°11′54,6″N","5°13′49,4″E",Thibaut T.,Thouroude B.,HG23,,,43.1985,5.230389
+165158,Ulvophyceae,Cladophorales,Cladophoraceae,Lychaete,pellucida,(Hudson) M.J.Wynne,26 September 2025,26 September 2025,France,"Planier, Marseille",0.5,"43°11′54,6″N","5°13′49,4″E",Thibaut T.,Boudouresque C.-F.,HG24,,,43.1985,5.230389
+59,Phaeophyceae,Dictyotales,Dictyotaceae,Dictyopteris,polypodioides,(De Candolle) J.V.Lamouroux,26 September 2025,26 September 2025,France,"Veyron, Marseille",35,"43°12′25,0″N","5°15′12,4″E","Thibaut T., Thouroude B.",Thouroude B.,HG25,,,43.206944,5.253444
+21905,Phaeophyceae,Tilopteridales,Cutleriaceae,Zanardinia,typus,(Nardo) P.C.Silva,26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Thouroude B.,HG26,,,43.206944,5.253444
+668,Florideophyceae,Peyssonneliales,Peyssonneliaceae,Peyssonnelia,rosa-marina,Boudouresque & Denizot,26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E","Thibaut T., Thouroude B.",Boudouresque C.-F.,HG27,,,43.206944,5.253444
+177548,Phaeophyceae,Fucales,Sargassaceae,Ericaria,brachycarpa,(J.Agardh) Molinari & Guiry,26 September 2025,26 September 2025,France,"Planier, Marseille",0.5,"43°11′54,6″N","5°13′49,4″E",Thibaut T.,Thibaut T.,HG28,,,43.1985,5.230389
+64,Phaeophyceae,Sporochnales,Sporochnaceae,Sporochnus,pedunculatus,(Hudson) C.Agardh,26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E",Thibaut T.,Boudouresque C.-F.,HG29,,,43.206944,5.253444
+177552,Phaeophyceae,Fucales,Sargassaceae,Ericaria,zosteroides,(C.Agardh) Molinari & Guiry,26 September 2025,26 September 2025,France,"Veyron, Marseille",35,"43°12′25,0″N","5°15′12,4″E",Thibaut T.,Thibaut T.,HG30,,,43.206944,5.253444
+872,Phaeophyceae,Dictyotales,Dictyotaceae,Zonaria,tournefortii,(J.V.Lamouroux) Montagne,26 September 2025,26 September 2025,France,"Veyron, Marseille",35,"43°12′25,0″N","5°15′12,4″E",Thibaut T.,Thouroude B.,HG31,,,43.206944,5.253444
+30,Florideophyceae,Gigartinales,Phyllophoraceae,Phyllophora,crispa,(Hudson) P.S.Dixon,26 September 2025,26 September 2025,France,"Veyron, Marseille",40,"43°12′25,0″N","5°15′12,4″E","Thibaut T., Thouroude B.",Thibaut T.,HG32,,,43.206944,5.253444
+14573,Florideophyceae,Ceramiales,Rhodomelaceae,Womersleyella,setacea,(Hollenberg) R.E.Norris,26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E","Thibaut T., Thouroude B.",Thibaut T.,HG33,,,43.206944,5.253444
+827,Phaeophyceae,Fucales,Sargassaceae,Sargassum,vulgare,C.Agardh,26 September 2025,26 September 2025,France,"Planier, Marseille",0.5,"43°11′55,1″N","5°13′45,0″E",Thibaut T.,Thibaut T.,HG34,,,43.198639,5.229167
+308,Phaeophyceae,Dictyotales,Dictyotaceae,Dictyota,dichotoma var. intricata,(C.Agardh) Greville,03 October 2025,03 October 2025,France,Six-four les plages,0.5,"43°4′10,6″N","5°47′37,2″E",Thouroude B.,Verlaque M.,HG35,,,43.069611,5.793667
+150630,Florideophyceae,Halymeniales,Halymeniaceae,Felicinia,marginata,"(Roussel) Manghisi, Le Gall, Ribera, Gargiulo & Morabito",26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Verlaque M.,HG36,,,43.206944,5.253444
+173303,Florideophyceae,Halymeniales,Halymeniaceae,Nesoia,mediterranea,"Rodríguez-Prieto, Showe M.Lin, De Clerck & Huisman",26 September 2025,26 September 2025,France,"Veyron, Marseille",25,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Verlaque M.,HG37,,,43.206944,5.253444
+1631,Florideophyceae,Sebdaniales,Sebdeniaceae,Sebdenia,dichotoma,Berthold,26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Verlaque M.,HG38,,,43.206944,5.253444
+132993,Florideophyceae,Rhodymeniales,Faucheaceae,Gloiocladia,repens,(C.Agardh) N.Sánchez & Rodríguez-Prieto,26 September 2025,26 September 2025,France,"Veyron, Marseille",30,"43°12′25,0″N","5°15′12,4″E",Thibaut T.,Verlaque M.,HG39,,,43.206944,5.253444
+26609,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,caduciramulosa,Masuda & S.Kawaguchi,26 September 2025,26 September 2025,France,"Planier, Marseille",0.5,"43°11′54,6″N","5°13′49,4″E",Thibaut T.,Verlaque M.,HG40,,,43.1985,5.230389
+65505,Florideophyceae,Ceramiales,Rhodomelaceae,Chondria,mediterranea,(Kützing) M.J.Wynne,03 October 2025,03 October 2025,France,Six-four les plages,0.5,"43°4′6,4″N","5°47′38,7″E","Thibaut T., Thouroude B.",Verlaque M.,HG41,,,43.068444,5.794083
+675,Florideophyceae,Corallinales,Lithophyllaceae,Amphiroa,rigida,J.V.Lamouroux,03 October 2025,03 October 2025,France,Six-four les plages,0.5,"43°4′6,4″N","5°47′38,7″E","Thibaut T., Thouroude B.",Verlaque M.,HG42,,,43.068444,5.794083
+4797,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,intricata,Kützing,03 October 2025,03 October 2025,France,Six-four les plages,0.5,"43°4′6,4″N","5°47′38,7″E","Thibaut T., Thouroude B.",Verlaque M.,HG43,,,43.068444,5.794083
+487,Florideophyceae,Ceramiales,Callithamniaceae,Spyridia,filamentosa,(Wulfen) Harvey,03 October 2025,03 October 2025,France,Six-four les plages,0,"43°4′6,4″N","5°47′38,7″E","Thibaut T., Thouroude B.",Verlaque M.,HG44,,,43.068444,5.794083
+93055,Florideophyceae,Ceramiales,Rhodomelaceae,Vertebrata,fruticulosa,(Wulfen) Kuntze,03 October 2025,03 October 2025,France,Six-four les plages,0,"43°4′6,4″N","5°47′38,7″E","Thibaut T., Thouroude B.",Verlaque M.,HG45,,,43.068444,5.794083
+,Florideophyceae,Nemaliales,Galaxauraceae,Tricleocarpa,fragilis,(Linnaeus) Huisman & R.A.Townsend,10 October 2025,10 October 2025,France,"Pointe Fauconnière, La Ciottat",12,"43°9′15,8″N","5°40′57,8″E",Thouroude B.,Verlaque M.,HG46,,,43.154389,5.682722
+866,Phaeophyceae,Dictyotales,Dictyotaceae,Dictyota,implexa,(Desfontaines) J.V.Lamouroux,10 October 2025,10 October 2025,France,"Pointe Fauconnière, La Ciottat",10,"43°9′15,8″N","5°40′57,8″E",Thouroude B.,Verlaque M.,HG47,,,43.154389,5.682722
+673,Florideophyceae,Corallinales,Lithophyllaceae,Amphiroa,cryptarthrodia,Zanardini,10 October 2025,10 October 2025,France,"Pointe Fauconnière, La Ciottat",10,"43°9′15,8″N","5°40′57,8″E","Thibaut T., Thouroude B.",Verlaque M.,HG48,,,43.154389,5.682722
+1371,Palmophyllophyceae,Palmophyllales,Palmophyllaceae,Palmophyllum,crassum,(Naccari) Rabenhorst,10 October 2025,10 October 2025,France,"Pointe Fauconnière, La Ciottat",10,"43°9′15,8″N","5°40′57,8″E","Thibaut T., Thouroude B.",Verlaque M.,HG49,,,43.154389,5.682722
+2949,Florideophyceae,Ceramiales,Ceramiaceae,Acrothamnion,preissii,(Sonder) E.M.Wollaston,10 October 2025,10 October 2025,France,"Pointe Fauconnière, La Ciottat",20,"43°9′15,8″N","5°40′57,8″E","Thibaut T., Thouroude B.",Verlaque M.,HG50,,,43.154389,5.682722
+58,Phaeophyceae,Sphacelariales,Cladostephaceae,Cladostephus,spongiosus,(Hudson) C.Agardh,10 October 2025,10 October 2025,France,"Pointe Fauconnière, La Ciottat",10,"43°9′15,8″N","5°40′57,8″E","Thibaut T., Thouroude B.",Verlaque M.,HG51,,,43.154389,5.682722
+429,Florideophyceae,Peyssonneliales,Peyssonneliaceae,Peyssonnelia,rubra,(Greville) J.Agardh,10 October 2025,10 October 2025,France,"Pointe Fauconnière, La Ciottat",16,"43°9′15,8″N","5°40′57,8″E","Thibaut T., Thouroude B.",Boudouresque C.-F.,HG52,,,43.154389,5.682722
+1317,Phaeophyceae,Laminariales,Laminariaceae,Laminaria,rodriguezii,Bornet,01 June 2018,01 June 2018,France,Banc de Magaud,80,"43°2′34,3″N","6°35′25,7″E",Andromède Océanologie,Boudouresque C.-F.,HG53,,,43.042861,6.590472
+19311,Florideophyceae,Corallinales,Corallinaceae,Jania,virgata,(Zanardini) Montagne,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",25,"43°12′51,0″N","5°19′32,4″E","Thibaut T., Thouroude B.",Thibaut T.,HG54,,,43.214167,5.325667
+134329,Phaeophyceae,Dictyotales,Dictyotaceae,Rugulopteryx,okamurae,"(E.Y.Dawson) I.K.Hwang, W.J.Lee & H.S.Kim",15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",5,"43°12′51,0″N","5°19′32,4″E","Thibaut T., Thouroude B.",Thouroude B.,HG55,,,43.214167,5.325667
+387,Florideophyceae,Corallinales,Corallinaceae,Jania,rubens,(Linnaeus) J.V.Lamouroux,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",10,"43°12′51,0″N","5°19′32,4″E",Thibaut T.,Thibaut T.,HG56,,,43.214167,5.325667
+1614,Florideophyceae,Peyssonneliales,Peyssonneliaceae,Peyssonnelia,crispata,Boudouresque & Denizot,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",32,"43°12′51,0″N","5°19′32,4″E",Thibaut T.,Verlaque M.,HG57,,,43.214167,5.325667
+873,Phaeophyceae,Discosporangiales,Choristocarpaceae,Choristocarpus,tenellus,Zanardini,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",32,"43°12′51,0″N","5°19′32,4″E",Thibaut T.,Verlaque M.,HG58,,,43.214167,5.325667
+708,Florideophyceae,Ceramiales,Wrangeliaceae,Bornetia,secundifora,(J.Agardh) Thuret,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",15,"43°12′51,0″N","5°19′32,4″E",Thouroude B.,Verlaque M.,HG59,,,43.214167,5.325667
+95,Florideophyceae,Corallinales,Lithophyllaceae,Litophyllum,stricatae forme,,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",30,"43°12′51,0″N","5°19′32,4″E","Thibaut T., Thouroude B.",Verlaque M.,HG60,,,43.214167,5.325667
+2110,Florideophyceae,Corallinales,Corallinaceae,Corallina,berteroi,Montagne ex Kützing,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",0,"43°12′51,0″N","5°19′32,4″E",Thouroude B.,Thibaut T.,HG61,,,43.214167,5.325667
+60,Phaeophyceae,Dictyotales,Dictyotaceae,Dictyota,dichotoma,(Hudson) J.V.Lamouroux,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",20,"43°12′51,0″N","5°19′32,4″E",Thibaut T.,Thibaut T.,HG62,,,43.214167,5.325667
+11836,Ulvophyceae,Cladophorales,Anadyomenaceae,Microdictyon,umbilicatum,(Velley) Zanardini,15 October 2025,15 October 2025,France,"Tiboulen, Maire Island, Marseille",30,"43°12′51,0″N","5°19′32,4″E",Thibaut T.,Thibaut T.,HG63,,,43.214167,5.325667
+1305,Phaeophyceae,Discosporangiales,Discosporangiaceae,Discosporangium,mesarthrocarpum,(Meneghini) Hauck,16 October 2025,16 October 2025,France,La Seyne-sur-Mer,1,"43°5′34,5″N","5°54′30,1″E",Thouroude B.,Verlaque M.,HG64,,,43.092917,5.908361
+138652,Phaeophyceae,Dictyotales,Dictyotaceae,Dictyota,cyanoloma,"Tronholm, De Clerck, A.Gómez-Garreta & Rull Lluch",16 October 2025,16 October 2025,France,La Seyne-sur-Mer,1,"43°5′34,5″N","5°54′30,1″E",Thouroude B.,Thouroude B.,HG65,,,43.092917,5.908361
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,16 October 2025,16 October 2025,France,La Seyne-sur-Mer,1,"43°5′34,5″N","5°54′30,1″E",Thouroude B.,Verlaque M.,HG66,,,43.092917,5.908361
+90,Phaeophyceae,Fucales,Sargassaceae,Sargassum,muticum,(Yendo) Fensholt,17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.2,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Thouroude B.,HG67,,,43.424194,3.700778
+177530,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,barbata,(Stackhouse) Kuntze,17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.2,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Thouroude B.,HG68,,,43.424194,3.700778
+3638,Ulvophyceae,Bryopsidales,Codiaceae,Codium,fragile,(Suringar) Hariot,17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.2,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Thouroude B.,HG69,,,43.424194,3.700778
+40,Ulvophyceae,Ulvales,Ulvaceae,Ulva,rigida,C.Agardh,17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.1,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Verlaque M.,HG70,,,43.424194,3.700778
+3483,Florideophyceae,Gigartinales,Gigartinaceae,Chondrus,giganteus,Yendo,17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.1,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Thibaut T.,HG71,,,43.424194,3.700778
+487,Florideophyceae,Ceramiales,Callithamniaceae,Spyridia,filamentosa,(Wulfen) Harvey,17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.1,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Verlaque M.,HG72,,,43.424194,3.700778
+33281,Florideophyceae,Ceramiales,Ceramiaceae,Centroceras,sp,"Kützing,",17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.1,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Verlaque M.,HG73,,,43.424194,3.700778
+12903,Ulvophyceae,Ulvales,Ulvaceae,Ulva,compressa,Linnaeus,17 October 2025,17 October 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.1,"43°25′27,1″N","3°42′2,8″E",Thouroude B.,Verlaque M.,HG74,,,43.424194,3.700778
+229,Ulvophyceae,Cladophorales,Cladophoraceae,Cladophora,laetevirens,(Dillwyn) Kützing,21 October 2025,21 October 2025,France,Carro,0.1,"43°19′38,6″N","5°2′29,4″E",Thibaut T.,"Thibaut T., Thouroude B.",HG75,,,43.327389,5.0415
+28,Florideophyceae,Nemaliales,Nemaliaceae,Nemalion,elminthoides,(Velley) Batters,21 October 2025,21 October 2025,France,Carro,0.1,"43°19′38,6″N","5°2′29,4″E",Thibaut T.,Thouroude B.,HG76,,,43.327389,5.0415
+186567,Phaeophyceae,Fucales,Sargassaceae,Cystoseira,pustulata,(Ercegovic) Neiva & Serrão,28 October 2025,28 October 2025,France,Ramatuelle,0.2,"43°11′22,2″N","6°38′59,5″E",Thouroude B.,"Thibaut T., Thouroude B.",HG77,,,43.1895,6.649861
+58360,Phaeophyceae,Fucales,Sargassaceae,Cystoseira,foeniculacea f. tenuiramosa,"A.Gómez Garreta, M.C.Barceló, M.A.Ribera & J.Rull Lluch",28 October 2025,28 October 2025,France,Ramatuelle,0.3,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,"Thibaut T., Thouroude B.",HG78,,,43.187778,6.646722
+1217,Ulvophyceae,Cladophorales,Anadyomenaceae,Anadyomene,stellata,(Wulfen) C.Agardh,28 October 2025,28 October 2025,France,Ramatuelle,1,"43°11′16,0″N","6°38′48,2″E",Thibaut T.,Thibaut T.,HG80,,,43.187778,6.646722
+4407,Florideophyceae,Gigartinales,Caulacanthaceae,Caulacanthus,okamurae,Yamada,28 October 2025,28 October 2025,France,Saint-Tropez,0.1,"43°16′8,7″N","6°37′54,9″E",Thouroude B.,Verlaque M.,HG80,,,43.269083,6.631917
+704,Florideophyceae,Ceramiales,Wrangeliaceae,Anotrichium,tenue,(C.Agardh) Nägeli,28 October 2025,28 October 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,Verlaque M.,HG81,,,43.187778,6.646722
+136412,Florideophyceae,Ceramiales,Rhodomelaceae,Palisada,thuyoides,"Cassano, Sentíes, Gil-Rodríguez & M.T.Fujii",28 October 2025,28 October 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,Verlaque M.,HG82,,,43.187778,6.646722
+173266,Phaeophyceae,Dictyotales,Dictyotaceae,Lobophora,delicata,Camacho & Fredericq,28 October 2025,28 October 2025,France,Ramatuelle,2,"43°11′16,0″N","6°38′48,2″E",Thibaut T.,Verlaque M.,HG83,,,43.187778,6.646722
+230,Ulvophyceae,Cladophorales,Cladophoraceae,Cladophora,lehmanniana,(Lindenberg) Kützing,28 October 2025,28 October 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E","Thibaut T., Thouroude B.",Verlaque M.,HG84,,,43.187778,6.646722
+1226,Dasycladales,Dasycladaceae,Dasycladaceae,Dasycladus,vermicularis,(Scopoli) Krasser,28 October 2025,28 October 2025,France,Ramatuelle,1,"43°11′16,0″N","6°38′48,2″E",Thibaut T.,Thibaut T.,HG85,,,43.187778,6.646722
+174145,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei,(J.Agardh) Kuntze,28 October 2025,28 October 2025,France,Ramatuelle,0.4,"43°11′22,2″N","6°38′59,5″E",Thibaut T.,Thibaut T.,HG86,,,43.1895,6.649861
+166,Florideophyceae,Ceramiales,Rhodomelaceae,Halopithys,incurva,(Hudson) Batters,28 October 2025,28 October 2025,France,Ramatuelle,0.3,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,Thouroude B.,HG87,,,43.187778,6.646722
+1566,Florideophyceae,Ceramiales,Rhodomelaceae,Digenea,simplex,(Wulfen) C.Agardh,28 October 2025,28 October 2025,France,Ramatuelle,0.3,"43°11′22,2″N","6°38′59,5″E",Thouroude B.,Thouroude B.,HG88,,,43.1895,6.649861
+177549,Phaeophyceae,Fucales,Sargassaceae,Ericaria,crinita,(Duby) Molinari & Guiry,28 October 2025,28 October 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,"Thibaut T., Thouroude B.",HG89,,,43.187778,6.646722
+226,Ulvophyceae,Cladophorales,Cladophoraceae,Cladophora,coelothrix,Kützing,28 October 2025,28 October 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,Verlaque M.,HG90,,,43.187778,6.646722
+132569,Ulvophyceae,Ulvales,Ulvaceae,Ulva,polyclada,Kraft,28 October 2025,28 October 2025,France,Ramatuelle,0.1,"43°11′16,0″N","6°38′48,2″E",Thibaut T.,Thibaut T.,HG91,,,43.187778,6.646722
+1542,Florideophyceae,Ceramiales,Callithamniaceae,Seirospora,giraudyi,(Kützing) De Toni,25 October 2025,25 October 2025,France,"Les Aresquiers, Palavas les flots",,"43°30′11,4″N","3°58′54,8″E",Lamare V.,Verlaque M.,HG92,,,43.503167,3.981889
+252,Fucophycidae,Ectocarpales,Acinetosporaceae,Hincksia,hincksiae,(Harvey) P.C.Silva,28 October 2025,28 October 2025,France,Ramatuelle,0.1,"43°11′16,0″N","6°38′48,2″E",Thibaut T.,Verlaque M.,HG93,,,43.187778,6.646722
+186824,Florideophyceae,Ceramiales,Delesseriaceae,Dasysiphonia,sessilis,"(Yamada) M.M.Cassidy, C.W.Schneider & G.W.Saunders",07 November 2025,07 November 2025,France,"Mèze, Thau",0.2,"43°25′17,5″N","3°36′17,5″E",Thouroude B.,Thouroude B. & Verlaque M.,HG95,,,43.421528,3.604861
+43897,Florideophyceae,Halymeniales,Grateloupiaceae,Grateloupia,asiatica,S.Kawaguchi & H.W.Wang,07 November 2025,07 November 2025,France,"Mèze, Thau",1,"43°25′17,5″N","3°36′17,5″E",Thouroude B.,Verlaque M.,HG96,,,43.421528,3.604861
+166,Florideophyceae,Ceramiales,Rhodomelaceae,Halopithys,incurva,(Hudson) Batters,07 November 2025,07 November 2025,France,"Mèze, Thau",0.3,"43°25′17,5″N","3°36′17,5″E",Thouroude B.,Verlaque M.,HG97,Forme atlantique,,43.421528,3.604861
+10458,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,brongniartii,J.Agardh,07 November 2025,07 November 2025,France,"Mèze, Thau",1,"43°25′17,5″N","3°36′17,5″E",Thouroude B.,Verlaque M.,HG98,,,43.421528,3.604861
+1129,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,duplex,De Notaris,12 November 2025,12 November 2025,France,"Mèze, Thau",0.1,"43°25′17,5″N","3°36′17,5″E",Thouroude B.,Verlaque M.,HG99,,,43.421528,3.604861
+162888,Florideophyceae,Ceramiales,Rhodomelaceae,Melanothamnus,harveyi,(Bailey) Díaz-Tapia & Maggs,07 November 2025,07 November 2025,France,"Mèze, Thau",0.1,"43°25′17,5″N","3°36′17,5″E",Thouroude B.,Verlaque M.,HG100,,,43.421528,3.604861
+222,Ulvophyceae,Cladophorales,Cladophoraceae,Chaetomorpha,linum,(O.F.Müller) Kützing,09 November 2025,09 November 2025,France,"Marseillan, Thau",0.1,"43°20′22,2″N","3°32′17,8″E",Thouroude B.,Thouroude B. & Verlaque M.,HG101,,,43.3395,3.538278
+162889,Florideophyceae,Ceramiales,Rhodomelaceae,Melanothamnus,harveyi,(Bailey) Díaz-Tapia & Maggs,09 November 2025,09 November 2025,France,"Marseillan, Thau",0.1,"43°20′22,2″N","3°32′17,8″E",Thouroude B.,Verlaque M.,HG103,,,43.3395,3.538278
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,09 November 2025,09 November 2025,France,"Marseillan, Thau",0.2,"43°20′22,2″N","3°32′17,8″E",Thouroude B.,Thouroude B. & Verlaque M.,HG104,,,43.3395,3.538278
+12754,Florideophyceae,Gigartinales,Phyllophoraceae,Gymnogongrus,flabelliformis,Harvey,12 November 2025,12 November 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.5,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Verlaque M.,HG105,,,43.424139,3.700389
+832,Phaeophyceae,Ectocarpales,Scytosiphonaceae,Hydroclathrus,clathratus,(C.Agardh) M.Howe,12 November 2025,12 November 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.2,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Thouroude B.,HG107,,,43.424139,3.700389
+43897,Florideophyceae,Halymeniales,Grateloupiaceae,Grateloupia,asiatica,S.Kawaguchi & H.W.Wang,12 November 2025,12 November 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.5,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Verlaque M.,HG109,,,43.424139,3.700389
+172368,Florideophyceae,Ceramiales,Rhodomelaceae,Symphocladiella,dendroidea,"(Montagne) Bustamante, B.Y.Won, S.C.Lindstrom & T.O.Cho",12 November 2025,12 November 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.5,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Verlaque M.,HG110,,,43.424139,3.700389
+162890,Florideophyceae,Ceramiales,Rhodomelaceae,Melanothamnus,harveyi,(Bailey) Díaz-Tapia & Maggs,15 November 2025,15 November 2025,France,"Mèze, Thau",0.1,"43°25′23,9″N","3°36′35,0″E",Thouroude B.,Verlaque M.,HG111,,,43.423306,3.609722
+438,Florideophyceae,Gracilariales,Gracilariaceae,Gracilaria,bursa-pastoris,(S.G.Gmelin) P.C.Silva,15 November 2025,15 November 2025,France,"Mèze, Thau",0.2,"43°25′23,9″N","3°36′35,0″E",Thouroude B.,Verlaque M.,HG112,,,43.423306,3.609722
+165,Florideophyceae,Ceramiales,Rhodomelaceae,Chondria,dasyphylla,(Woodward) C.Agardh,15 November 2025,15 November 2025,France,"Mèze, Thau",0.2,"43°25′23,9″N","3°36′35,0″E",Thouroude B.,Thouroude B.,HG113,,,43.423306,3.609722
+436,Florideophyceae,Ceramiales,Ceramiaceae,Ceramium,ciliatum,(J.Ellis) Ducluzeau,15 November 2025,15 November 2025,France,"Mèze, Thau",0.1,"43°25′23,9″N","3°36′35,0″E",Thouroude B.,Borriglione M. & Thouroude B.,HG115,,,43.423306,3.609722
+127,Florideophyceae,Gigartinales,Gigartinaceae,Chondracanthus,acicularis,(Roth) Fredericq,15 November 2025,15 November 2025,France,"Mèze, Thau",0.2,"43°25′23,9″N","3°36′35,0″E",Thouroude B.,Thouroude B.,HG116,,,43.423306,3.609722
+74,Phaeophyceae,Ectocarpales,Scytosiphonaceae,Colpomenia,peregrina,Sauvageau,04/12/2025,4 Dec 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HG117,,,43.389722,4.866389
+13319,Bangiophyceae,Bangiales,Bangiaceae,Bangia,fuscopurpurea,(Dillwyn) Lyngbye,04/12/2025,4 Dec 2025,France,"Dyke, Port-St-Louis-du-Rhone",0,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HG118,,,43.389722,4.866389
+460,Florideophyceae,Ceramiales,Callithamniaceae,Callithamnion,granulatum,(Ducluzeau) C.Agardh,04/12/2025,4 Dec 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HG119,,,43.389722,4.866389
+477,Florideophyceae,Florideophyceae,Wrangeliaceae,Pleonosporium,borreri,(Smith) Nägeli,04/12/2025,4 Dec 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HG120,,,43.389722,4.866389
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,04/12/2025,4 Dec 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HG121,,,43.389722,4.866389
+31,Florideophyceae,Plocamiales,Plocamiaceae,Plocamium,cartilagineum,(Linnaeus) P.S.Dixon,17/12/2025,17 Dec 2025,France,"La grotte à Perez, Plane Island Marseille",1,"43°11'11""N","5°23'29""E",Thouroude B.,Thouroude B.,HG123,,,43.186389,5.391389
+1220,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,muscosa,J.V.Lamouroux,17/12/2025,17 Dec 2025,France,"La grotte à Perez, Plane Island Marseille",1,"43°11'11""N","5°23'29""E",Thouroude B.,Thouroude B.,HG124,,,43.186389,5.391389
+125,Florideophyceae,Gigartinales,Phyllophoraceae,Schottera,nicaeensis,(Duby) Guiry & Hollenberg,17/12/2025,17 Dec 2025,France,"La grotte à Perez, Plane Island Marseille",1,"43°11'11""N","5°23'29""E",Thouroude B.,Thouroude B.,HG125,,,43.186389,5.391389
+678,Florideophyceae,Nemastomales,Schizymeniaceae,Platoma,cyclocolpum,(Montagne) F.Schmitz,17/12/2025,17 Dec 2025,France,"Les pierres tombées, Riou Island, Marseille",1,"43°10'27""N","5°23'53""E",Thouroude B.,Thouroude B.,HG126,,,43.174167,5.398056
+143028,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,cupressina var. adriatica,(J.Agardh) M.J.Wynne,12/01/2026,12 Jan 2026,France,"Cap Caveaux, Frioul Islands, Marseille",20,"43°15'38.26""N","5°17'23.30""E",Thibaut T.,Thouroude B.,HG127,,,43.260628,5.289806
+6,Florideophyceae,Bonnemaisoniales,Bonnemaisoniaceae,Asparagopsis,armata,Harvey,12/01/2026,12 Jan 2026,France,"Cap Caveaux, Frioul Islands, Marseille",5,"43°15'38.26""N","5°17'23.30""E",Thibaut T.,Thouroude B.,HG128,Falkenbergia-phase,,43.260628,5.289806
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,23/02/2026,23 Feb 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HG129,First observartion in Mediterranean Sea,,43.447444,3.651156
+176005,Bangiophyceae,Bangiales,Bangiaceae,Neopyropia,yezoensis,(Ueda) L.-E.Yang & J.Brodie,23/02/2026,23 Feb 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Thouroude B.,HG130,,,43.447444,3.651156
+160,Florideophyceae,Ceramiales,Delesseriaceae,Radicilingua,thysanorhizans,(Holmes) Papenfuss,23/02/2026,23 Feb 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HG131,,,43.447444,3.651156
+334,Phaeophyceae,Sphacelariales,Stypocaulaceae,Halopteris,filicina,(Grateloup) Kützing,26/02/2026,26 Feb 2026,Fance,"La Cassidaigne, Cassis",33,"43°08'42.75""N","5°32'50.83""E",Thouroude B.,Thouroude B.,HG132,,,43.145208,5.547453
+61554,Florideophyceae,Ceramiales,Delesseriaceae,Acrosorium,ciliolatum,(Harvey) Kylin,26/02/2026,26 Feb 2026,Fance,"La Cassidaigne, Cassis",8,"43°08'42.75""N","5°32'50.83""E",Thouroude B.,"Thibaut T., Thouroude B.",HG133,,,43.145208,5.547453
+6,Florideophyceae,Bonnemaisoniales,Bonnemaisoniaceae,Asparagopsis,armata,Harvey,27/02/2026,27 Feb 2026,France,"Le Souquet, Marseille",20,"43°11'58.57""N","5°14'02.53""E",Thouroude B.,Thouroude B.,HG134,Gametophyte,,43.199603,5.234036
+1630,Florideophyceae,Gigartinales,Chondrymeniaceae,Chondrymenia,lobata,(Meneghini) Zanardini,27/02/2026,27 Feb 2026,France,"Le Souquet, Marseille",20,"43°11'58.57""N","5°14'02.53""E",Thouroude B.,Verlaque M.,HG135,,,43.199603,5.234036
+11457,Ulvophyceae,Cladophorales,Cladophoraceae,Chaetomorpha,aerea,(Dillwyn) Kützing,12/03/2026,12 Mar 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Borriglione M.,HG136,,,43.389561,4.865817
+222,Ulvophyceae,Cladophorales,Cladophoraceae,Chaetomorpha,linum,(O.F.Müller) Kützing,12/03/2026,12 Mar 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Borriglione M.,HG137,,,43.389561,4.865817
+4835,Florideophyceae,Ceramiales,Rhodomelaceae,Polysiphonia,morrowii,Harvey,12/03/2026,12 Mar 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Verlaque M.,HG138,,,43.389561,4.865817
+103,Florideophyceae,Nemaliales,Scinaiaceae,Scinaia,furcellata,(Turner) J.Agardh,12/03/2026,12 Mar 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Verlaque M.,HG139,,,43.389561,4.865817
+459,Florideophyceae,Ceramiales,Callithamniaceae,Callithamnion,corymbosum,(Smith) Lyngbye,12/03/2026,12 Mar 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Verlaque M.,HG140,,,43.389561,4.865817
+746,Florideophyceae,Ceramiales,Wrangeliaceae,Griffithsia,phyllamphora,J.Agardh,12/03/2026,12 Mar 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Verlaque M.,HG141,,,43.389561,4.865817
+76,Phaeophyceae,Ectocarpales,Scytosiphonaceae,Scytosiphon,lomentaria,(Lyngbye) Link,12/03/2026,12 Mar 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Verlaque M.,HG142,,,43.389561,4.865817
+93255,Florideophyceae,Ceramiales,Rhodomelaceae,Vertebrata,furcellata,(C.Agardh) Kuntze,16/03/2026,16 Mar 2026,France,"Bouzigues, Thau",0.5,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HG143,,,43.447444,3.651156
+133475,Florideophyceae,Ceramiales,Rhodomelaceae,Osmundea,oederi,(Gunnerus) G.Furnari,16/03/2026,16 Mar 2026,France,"Bouzigues, Thau",0.5,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HG144,,,43.447444,3.651156
+129,Florideophyceae,Gigartinales,Dumontiaceae,Dudresnaya,verticillata, (Withering) Le Jolis,25/05/2026,25 May 2026,France,"Veyron, Marseille",15,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Thouroude B.,HG145,,,43.206944,5.253444
+1631,Florideophyceae,Sebdaniales,Sebdeniaceae,Sebdenia,dichotoma,Berthold,07/06/2026,07 Jun 2026,France,"Planier, Marseille",21,"43°11′54,6″N","5°13′49,4″E",Thouroude B.,Thouroude B.,HG146,,,43.1985,5.230389
+695,Florideophyceae,Rhodymeniales,Rhodymeniaceae,Chrysymenia,ventricosa,(J.V.Lamouroux) J.Agardh,07/06/2026,07 Jun 2026,France,"Planier, Marseille",5,"43°11′54,6″N","5°13′49,4″E",Thouroude B.,Thouroude B.,HG147,,,43.1985,5.230389
+351,Ulvophyceae,Dasycladales,Polyphysaceae,Acetabularia,acetabulum,(Linnaeus) P.C.Silva,08/06/2026,08 Jun 2026,France,"Planier, Marseille",2,"43°11'57.19""N","5°13'50.59""E",Thouroude B.,Thouroude B.,HG148,,,43.199219,5.230719
+165505,Florideophyceae,Ceramiales,Rhodomelaceae,Chondria,mediterranea,(Kützing) M.J.Wynne,08/06/2026,08 Jun 2026,France,"Planier, Marseille",2,"43°11'57.19""N","5°13'50.59""E",Thouroude B.,Thouroude B.,HG149,,,43.199219,5.230719
+827,Phaeophyceae,Fucales,Sargassaceae,Sargassum,vulgare,C.Agardh,25/06/2026,25 Jun 2026,France,"Cap Caveaux, Frioul Islands, Marseille",15,"43°15'36.76""N","5°17'20.98""E",Thouroude B.,Thouroude B.,HG150,,,43.260211,5.289161
+700,Florideophyceae,Rhodymeniales,Champiaceae,Gastroclonium,clavatum,(Roth) Ardissone,26/06/2026,26 Jun 2026,France,"Digue du large, Marseille",0.1,"43°20'10.42""N","5°20'11.47""E",Thiriot F. & Thibaut T.,Thouroude B.,HG151,,,43.336228,5.336519
+1463,Florideophyceae,Gigartinales,Rissoellaceae,Rissoella,verruculosa,(A.Bertoloni) J.Agardh,26/06/2026,26 Jun 2026,France,"Digue du large, Marseille",0.1,"43°20'04.52""N","5°20'22.16""E",Thiriot F. & Thibaut T.,Thouroude B.,HG152,,,43.334589,5.339489
+31,Florideophyceae,Plocamiales,Plocamiaceae,Plocamium,cartilagineum,(Linnaeus) P.S.Dixon,05/07/2026,05 Jul 2026,France,"Planier, Marseille",15,"43°11'58.59""N","5°13'53.84""E",Thouroude B.,Thouroude B.,HG153,,,43.199608,5.231622
+1341,Phaeophyceae,Fucales,Sargassaceae,Cystoseira,jabukae,Ercegović,07/07/2026,07 Jul 2026,France,"Moyade, Riou Island, Marseille",25,"43°10'33.66""N","5°22'15.59""E",Thibaut T.,Thibaut T. & Thouroude B.,HG154,,,43.176017,5.370997
+812,Florideophyceae,Ceramiales,Rhodomelaceae,Osmundaria,volubilis,(Linnaeus) R.E.Norris,20/07/2026,20 Jul 2026,France,"Planier, Marseille",35,"43°11'44.65""N","5°13'17.71""E",Thouroude B.,Thouroude B.,HG155,,,43.195736,5.221586
+184095,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei var. compressa,"Verlaque, Blanfuné, Boudouresque & Thibaut",16/06/2026,16 Jul 2026,Monaco,"Larvotto, Monte-Carlo",30,"43°44'31.33""N","7°26'02.18""E",Astruch P. & Schon T.,Thibaut T.,HG156,Silica gel + 1 tube in freezer -80°C,,43.742036,7.433939
+827,Phaeophyceae,Fucales,Sargassaceae,Sargassum,vulgare,C.Agardh,23/09/2026,23 Sep 2026,France,"Sec du soldat, Marseille",35,"43°12'11.38""N","5°28'28.93""E",Thouroude B.,Boudouresque C.-F.; Thibaut T. & Thouroude B.,HG157,S. flavifolium ??,,43.203161,5.474703
+827,Phaeophyceae,Fucales,Sargassaceae,Sargassum,vulgare,C.Agardh,23/09/2026,23 Sep 2026,France,"Sec du soldat, Marseille",35,"43°12'11.38""N","5°28'28.93""E",Thouroude B.,Boudouresque C.-F.; Thibaut T. & Thouroude B.,HG157,S. flavifolium ??,,43.203161,5.474703
+177545,Phaeophyceae,Fucales,Sargassaceae,Ericaria,amentacea,(C.Agardh) Molinari & Guiry,12/09/2025,12 sept. 2025,France,Sausset les pins,0.1,"43°10′26,1″N","5°23′55,1″E",Blanfuné A.,Blanfuné A.,HBT01,,,43.173917,5.398639
+177533,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei var tenuior,(Ercegović) Molinari & Guiry,22/09/2025,22 sept. 2025,France,"Pierre à Joseph, Plane Island, Marseille",12,"43°11′7,2″N","5°23′22,1″E",Thibaut T.,Thibaut T.,HBT02,,,43.185333,5.389472
+177552,Phaeophyceae,Fucales,Sargassaceae,Ericaria,zosteroides,(C.Agardh) Molinari & Guiry,15/10/2025,15 oct. 2025,France,"Tiboulen, Maire Island, Marseille",30,"43°12′51,0″N","5°19′32,4″E",Thouroude B.,Thouroude B.,HBT03,,,43.214167,5.325667
+134329,Phaeophyceae,Dictyotales,Dictyotaceae,Rugulopteryx,okamurae,"(E.Y.Dawson) I.K.Hwang, W.J.Lee & H.S.Kim",16/10/2025,16 oct. 2025,France,La Seyne-sur-Mer,1,"43°5′34,5″N","5°54′30,1″E",Thouroude B.,Thouroude B.,HBT04,,,43.092917,5.908361
+90,Phaeophyceae,Fucales,Sargassaceae,Sargassum,muticum,(Yendo) Fensholt,17/10/2025,17 oct. 2025,France,"Mèze, Thau",0.5,"43°25′23,9″N","3°36′35,0″E",Thouroude B.,Thouroude B.,HBT05,,,43.423306,3.609722
+177533,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei var tenuior,(Ercegović) Molinari & Guiry,19/10/2025,19 oct. 2025,France,Moyade-Marseille,25,"43°10'36.98""N","5°22'14.05""E",Thibaut T.,Thibaut T.,HBT06,,,43.176939,5.370569
+77,Phaeophyceae,Fucales,Sargassaceae,Sargassum,sp.,C.Agardh,28/10/2025,28 oct. 2025,France,Ramatuelle,0.1,"43°11′16,0″N","6°38′48,2″E","Thibaut T., Thouroude B.","Thibaut T., Thouroude B.",HBT07,,,43.187778,6.646722
+177549,Phaeophyceae,Fucales,Sargassaceae,Ericaria,crinita,(Duby) Molinari & Guiry,28/10/2025,28 oct. 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,"Thibaut T., Thouroude B.",HBT08,,,43.187778,6.646722
+177548,Phaeophyceae,Fucales,Sargassaceae,Ericaria,brachycarpa,(J.Agardh) Molinari & Guiry,28/10/2025,28 oct. 2025,France,Ramatuelle,0.3,"43°11′22,2″N","6°38′59,5″E",Thouroude B.,Thouroude B.,HBT09,,,43.1895,6.649861
+177530,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,barbata,(Stackhouse) Kuntze,28/10/2025,28 oct. 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E","Thibaut T., Thouroude B.","Thibaut T., Thouroude B.",HBT10,,,43.187778,6.646722
+177530,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,barbata,(Stackhouse) Kuntze,28/10/2025,28 oct. 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E","Thibaut T., Thouroude B.","Thibaut T., Thouroude B.",HBT11,,,43.187778,6.646722
+177530,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,barbata,(Stackhouse) Kuntze,28/10/2025,28 oct. 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E","Thibaut T., Thouroude B.","Thibaut T., Thouroude B.",HBT12,,,43.187778,6.646722
+177530,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,barbata,(Stackhouse) Kuntze,28/10/2025,28 oct. 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E","Thibaut T., Thouroude B.","Thibaut T., Thouroude B.",HBT13,,,43.187778,6.646722
+58360,Phaeophyceae,Fucales,Sargassaceae,Cystoseira,foeniculacea f. tenuiramosa,"A.Gómez Garreta, M.C.Barceló, M.A.Ribera & J.Rull Lluch",28/10/2025,28 oct. 2025,France,Ramatuelle,0.3,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,Thouroude B.,HBT14,,,43.187778,6.646722
+58360,Phaeophyceae,Fucales,Sargassaceae,Cystoseira,foeniculacea f. tenuiramosa,"A.Gómez Garreta, M.C.Barceló, M.A.Ribera & J.Rull Lluch",28/10/2025,28 oct. 2025,France,Ramatuelle,0.3,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,Thouroude B.,HBT15,,,43.187778,6.646722
+21470,Ulvophyceae,Bryopsidales,Caulerpaceae,Caulerpa,cylindracea,Sonder,28/10/2025,28 oct. 2025,France,Ramatuelle,0.5,"43°11′16,0″N","6°38′48,2″E",Thouroude B.,Thouroude B.,HBT16,,,43.187778,6.646722
+791,Florideophyceae,Ceramiales,Rhodomelaceae,Polysiphonia,flocculosa,(C.Agardh) Endlicher,04/11/2025,04 nov. 2025,France,"SOLEMIO buoy, Marseille",0,"43°15'19.90""N","5°17'12.79""E",Thouroude B.,Thouroude B.,HBT17,,,43.255528,5.286886
+59,Phaeophyceae,Dictyotales,Dictyotaceae,Dictyopteris,polypodioides,(De Candolle) J.V.Lamouroux,12/11/2025,12 nov. 2025,France,"Frontignan, Ponton de la bordelaise, Thau",1,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Thouroude B.,HBT18,,,43.424139,3.700389
+43897,Florideophyceae,Halymeniales,Grateloupiaceae,Grateloupia,asiatica,S.Kawaguchi & H.W.Wang,12/11/2025,12 nov. 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.5,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Verlaque M.,HBT19,,,43.424139,3.700389
+3483,Florideophyceae,Gigartinales,Gigartinaceae,Chondrus,giganteus f. flabelatus,Yendo,12/11/2025,12 nov. 2025,France,"Frontignan, Ponton de la bordelaise, Thau",0.6,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Verlaque M.,HBT20,,,43.424139,3.700389
+10458,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,brongniartii,J.Agardh,15/11/2025,15 nov. 2025,France,"Mèze, Thau",0.3,"43°25′23,9″N","3°36′35,0″E",Thouroude B.,Verlaque M.,HBT21,,,43.423306,3.609722
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HBT22,,,43.389722,4.866389
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HBT23,,,43.389722,4.866389
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HBT24,,,43.389722,4.866389
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HBT25,,,43.389722,4.866389
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HBT26,,,43.389722,4.866389
+149,Florideophyceae,Ceramiales,Wrangeliaceae,Halurus,flosculosus,(J.Ellis) Maggs & Hommersand,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.2,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Verlaque M.,HBT27,,,43.389722,4.866389
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.2,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Thouroude B.,HBT28,,,43.389722,4.866389
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.2,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Thouroude B.,HBT29,,,43.389722,4.866389
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.2,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Thouroude B.,HBT30,,,43.389722,4.866389
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,04/12/2025,4 dec. 2025,France,"Dyke, Port-St-Louis-du-Rhone",0.2,"43°23'23""N","4°51'59,0""E",Guieu M. & Thouroude B.,Thouroude B.,HBT31,,,43.389722,4.866389
+31,Florideophyceae,Plocamiales,Plocamiaceae,Plocamium,cartilagineum,(Linnaeus) P.S.Dixon,17/12/2025,17 dec. 2025,France,"La grotte à Perez, Plane Island Marseille",1,"43°11'11""N","5°23'29""E",Thouroude B.,Thouroude B.,HBT32,,,43.186389,5.391389
+12624,Phaeophyceae,Sphacelariales,Stypocaulaceae,Halopteris,scoparia,(Linnaeus) Sauvageau,17/12/2025,17 dec. 2025,France,"Les pierres tombées, Riou Island, Marseille",15,"43°10'27""N","5°23'53""E",Thouroude B.,Thouroude B.,HBT33,,,43.174167,5.398056
+12624,Phaeophyceae,Sphacelariales,Stypocaulaceae,Halopteris,scoparia,(Linnaeus) Sauvageau,17/12/2025,17 dec. 2025,France,"Les pierres tombées, Riou Island, Marseille",15,"43°10'27""N","5°23'53""E",Thouroude B.,Thouroude B.,HBT34,,,43.174167,5.398056
+12624,Phaeophyceae,Sphacelariales,Stypocaulaceae,Halopteris,scoparia,(Linnaeus) Sauvageau,17/12/2025,17 dec. 2025,France,"Les pierres tombées, Riou Island, Marseille",15,"43°10'27""N","5°23'53""E",Thouroude B.,Thouroude B.,HBT35,,,43.174167,5.398056
+6,Florideophyceae,Bonnemaisoniales,Bonnemaisoniaceae,Hypoglossum,hypoglossoides,(Stackhouse) Collins & Hervey,12/01/2026,12 jan. 2026,France,"Cap Caveaux, Frioul Islands, Marseille",5,"43°15'38.26""N","5°17'23.30""E",Thibaut T.,Boudouresque C.-F.,HBT36,,,43.260628,5.289806
+10458,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,brongniartii,J.Agardh,23/02/2026,23 feb. 2026,France,"Bouzigues, Thau",0.5,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Thouroude B.,HBT37,,,43.447444,3.651156
+438,Florideophyceae,Gracilariales,Gracilariaceae,Gracilaria,bursa-pastoris,(S.G.Gmelin) P.C.Silva,23/02/2026,23 feb. 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HBT38,,,43.447444,3.651156
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,23/02/2026,23 feb. 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HBT39,,,43.447444,3.651156
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,23/02/2026,23 feb. 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HBT40,,,43.447444,3.651156
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,23/02/2026,23 feb. 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HBT41,,,43.447444,3.651156
+176005,Bangiophyceae,Bangiales,Bangiaceae,Neopyropia,yezoensis,(Ueda) L.-E.Yang & J.Brodie,23/02/2026,23 feb. 2026,France,"Bouzigues, Thau",0.3,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Thouroude B.,HBT42,,,43.447444,3.651156
+134329,Phaeophyceae,Dictyotales,Dictyotaceae,Rugulopteryx,okamurae,"(E.Y.Dawson) I.K.Hwang, W.J.Lee & H.S.Kim",26/02/2026,26 feb. 2026,France,"La Cassidaigne, Cassis",8,"43°08'42.75""N","5°32'50.83""E",Thouroude B.,"Thibaut T., Thouroude B.",HBT43,,,43.145208,5.547453
+61554,Florideophyceae,Ceramiales,Delesseriaceae,Acrosorium,ciliolatum,(Harvey) Kylin,26/02/2026,26 feb. 2026,France,"La Cassidaigne, Cassis",8,"43°08'42.75""N","5°32'50.83""E",Thouroude B.,"Thibaut T., Thouroude B.",HBT44,,,43.145208,5.547453
+180912,Florideophyceae,Rhodymeniales,Rhodymeniaceae,Irvinea,chiajeana,"(Meneghini) Cormaci, Alongi & G.Furnari",27/02/2026,27 feb. 2026,France,"Le Veyron, Marseille",35,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Verlaque M.,HBT45,,,43.206944,5.253444
+695,Florideophyceae,Rhodymeniales,Rhodymeniaceae,Chrysymenia,ventricosa,(J.V.Lamouroux) J.Agardh,27/02/2026,27 feb. 2026,France,"Le Veyron, Marseille",40,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Verlaque M.,HBT46,,,43.206944,5.253444
+1631,Florideophyceae,Sebdaniales,Sebdeniales,Sebdenia,dichotoma,Berthold,26/02/2026,26 feb. 2026,France,"La Cassidaigne, Cassis",15,"43°08'42.75""N","5°32'50.83""E",Thouroude B.,Thouroude B.,HBT47,,,43.145208,5.547453
+30,Florideophyceae,Gigartinales,Phyllophoraceae,Phyllophora,crispa,(Hudson) P.S.Dixon,27/02/2026,27 feb. 2026,France,"Le Souquet, Marseille",20,"43°11'58.57""N","5°14'02.53""E",Thouroude B.,Thouroude B.,HBT48,,,43.199603,5.234036
+177552,Phaeophyceae,Fucales,Sargassaceae,Ericaria,zosteroides,(C.Agardh) Molinari & Guiry,27/02/2026,27 feb. 2026,France,"Le Veyron, Marseille",35,"43°12′25,0″N","5°15′12,4″E",Thouroude B.,Thouroude B.,HBT49,,,43.206944,5.253444
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,12/03/2026,12 mar. 2026,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Thouroude B.,HBT50,,,43.389561,4.865817
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,12/03/2026,12 mar. 2026,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Thouroude B.,HBT51,,,43.389561,4.865817
+115,Florideophyceae,Nemastomatales,Schizymeniaceae,Schizymenia,dubyi,(Chauvin ex Duby) J.Agardh,12/03/2026,12 mar. 2026,France,"Dyke, Port-St-Louis-du-Rhone",0.1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Thouroude B.,HBT52,,,43.389561,4.865817
+4835,Florideophyceae,Ceramiales,Rhodomelaceae,Polysiphonia,morrowii,Harvey,12/03/2026,12 mar. 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Verlaque M.,HBT53,,,43.389561,4.865817
+74,Phaeophyceae,Ectocarpales,Scytosiphonaceae,Colpomenia,peregrina,Sauvageau,13/03/2026,13 mar. 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Thouroude B.,HBT54,,,43.389561,4.865817
+746,Florideophyceae,Ceramiales,Wrangeliaceae,Griffithsia,phyllamphora,J.Agardh,13/03/2026,13 mar. 2026,France,"Dyke, Port-St-Louis-du-Rhone",1,"43°23'22.42""N","4°51'56.94""E",Borriglione M. & Thouroude B.,Verlaque M.,HBT55,,,43.389561,4.865817
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,16/03/2026,16 mar. 2026,France,"Bouzigues, Thau",0.5,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HBT56,,,43.447444,3.651156
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,16/03/2026,16 mar. 2026,France,"Bouzigues, Thau",0.5,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HBT57,,,43.447444,3.651156
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,16/03/2026,16 mar. 2026,France,"Bouzigues, Thau",0.5,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Verlaque M.,HBT58,,,43.447444,3.651156
+1220,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,muscosa,J.V.Lamouroux,23/03/2026,23 mar. 2026,France,"Callelongue, Marseille",0.1,"43°12'43.29""N","5°21'08.79""E",Thouroude B.,Thouroude B.,HBT59,,,43.212025,5.352442
+157,Florideophyceae,Ceramiales,Delesseriaceae,Nitophyllum,punctatum,(Stackhouse) Greville,23/03/2026,23 mar. 2026,France,"Callelongue, Marseille",0.1,"43°12'43.29""N","5°21'08.79""E",Borriglione M.,Borriglione M. & Thouroude B.,HBT60,,,43.212025,5.352442
+349,Florideophyceae,Gigartinales,Cystocloniaceae,Hypnea,musciformis,(Wulfen) J.V. Lamouroux,23/03/2026,23 mar. 2026,France,"Callelongue, Marseille",0.1,"43°12'43.29""N","5°21'08.79""E",Borriglione M.,Borriglione M. & Thouroude B.,HBT61,,,43.212025,5.352442
+1220,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,muscosa,J.V.Lamouroux,23/03/2026,23 mar. 2026,France,"Callelongue, Marseille",0.1,"43°12'43.29""N","5°21'08.79""E",Thouroude B.,Thouroude B.,HBT62,,,43.212025,5.352442
+1220,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,muscosa,J.V.Lamouroux,23/03/2026,23 mar. 2026,France,"Callelongue, Marseille",0.1,"43°12'43.29""N","5°21'08.79""E",Thouroude B.,Thouroude B.,HBT63,,,43.212025,5.352442
+1542,Florideophyceae,Ceramiales,Callithamniaceae,Seirospora,giraudyi,(Kützing) De Toni,23/03/2026,23 mar. 2026,France,"Callelongue, Marseille",1,"43°12'43.29""N","5°21'08.79""E",Borriglione M.,Borriglione M. & Thouroude B.,HBT64,,,43.212025,5.352442
+460,Florideophyceae,Ceramiales,Callithamniaceae,Callithamnion,granulatum,(Ducluzeau) C.Agardh,23/03/2026,23 mar. 2026,France,"Callelongue, Marseille",0.1,"43°12'43.29""N","5°21'08.79""E",Thouroude B.,Thouroude B.,HBT65,,,43.212025,5.352442
+3632,Ulvophyceae,Bryopsidales,Bryopsidaceae,Bryopsis,corticulans,Setchell,16/03/2026,16 mar. 2026,France,"Bouzigues, Thau",0.5,"43°26'50.80""N","3°39'04.16""E",Thouroude B.,Thouroude B.,HBT66,,,43.447444,3.651156
+62,Phaeophyceae,Dictyotales,Dictyotaceae,Taonia,atomaria,(Woodward) J.Agardh,06/04/2026,06 apr. 2026,France,La Seyne-sur-Mer,0.1,"43°06'02.93""N","5°54'37.49""E",Thouroude B.,Thouroude B.,HBT67,,,43.100814,5.910414
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,06/04/2026,06 apr. 2026,France,La Seyne-sur-Mer,0.2,"43°06'02.93""N","5°54'37.49""E",Thouroude B.,Thouroude B.,HBT68,,,43.100814,5.910414
+4363,Florideophyceae,Halymeniales,Halymeniaceae,Grateloupia,turuturu,Yamada,02/06/2026,02 jun. 2026,France,"Ponton de la Bordelaise, Frontignan, Thau lagoon",0.2,"43°25′26,9″N","3°42′1,4″E",Thouroude B.,Thouroude B.,HBT69,,,43.424139,3.700389
+337,Phaeophyceae,Fucales,Sargassaceae,Cystoseira,foeniculacea,(Linnaeus) Greville,05/06/2026,05 jun. 2026,France,"Cap Caveaux, Frioul Islands, Marseille",30,"43°15'37.29""N","5°17'22.63""E",Thouroude B.,Thouroude B.,HBT70,,,43.260358,5.289619
+695,Florideophyceae,Rhodymeniales,Rhodymeniaceae,Chrysymenia,ventricosa,(J.V.Lamouroux) J.Agardh,07/06/2026,07 jun. 2026,France,"Planier, Marseille",5,"43°11′54,6″N","5°13′49,4″E",Thouroude B.,Thouroude B.,HBT71,,,43.1985,5.230389
+77,Phaeophyceae,Fucales,Sargassaceae,Sargassum,sp.,C.Agardh,08/06/2026,08 jun. 2026,France,"Dalton ship wreck, Planier, Marseille",25,"43°11'57.63""N","5°13'51.06""E",Thouroude B.,Thouroude B.,HBT72,,,43.199342,5.23085
+58,Phaeophyceae,Sphacelariales,Cladostephaceae,Cladostephus,spongiosus,(Hudson) C.Agardh,08/06/2026,08 jun. 2026,France,"Dalton ship wreck, Planier, Marseille",15,"43°11'57.63""N","5°13'51.06""E",Thouroude B.,Thouroude B.,HBT73,,,43.199342,5.23085
+129,Florideophyceae,Gigartinales,Dumontiaceae,Dudresnaya,verticillata,(Withering) Le Jolis,08/06/2026,08 jun. 2026,France,"Dalton ship wreck, Planier, Marseille",25,"43°11'57.63""N","5°13'51.06""E",Thouroude B.,Thouroude B.,HBT74,,,43.199342,5.23085
+129,Florideophyceae,Gigartinales,Dumontiaceae,Dudresnaya,verticillata,(Withering) Le Jolis,08/06/2026,08 jun. 2026,France,"Dalton ship wreck, Planier, Marseille",25,"43°11'57.63""N","5°13'51.06""E",Thouroude B.,Thouroude B.,HBT75,,,43.199342,5.23085
+129,Florideophyceae,Gigartinales,Dumontiaceae,Dudresnaya,verticillata,(Withering) Le Jolis,08/06/2026,08 jun. 2026,France,"Dalton ship wreck, Planier, Marseille",25,"43°11'57.63""N","5°13'51.06""E",Thouroude B.,Thouroude B.,,,Donnée à Capucine Le Cam Ligier,43.199342,5.23085
+64,Phaeophyceae,Sporochnales,Sporochnaceae,Sporochnus,pedunculatus,(Hudson) C.Agardh,15/06/2026,15 jun. 2026,France,"Cap Caveaux, Frioul Islands, Marseille",30,"43°15'37.29""N","5°17'22.63""E",Thouroude B.,Thouroude B.,HBT76,,,43.260358,5.289619
+177551,Phaeophyceae,Fucales,Sargassaceae,Ericaria,mediterranea,(Sauvageau) Molinari & Guiry,14/06/2026,14 jun 2026,Spain,L'Estartit,0,"42°03'11.02""N","3°12'33.08""E",Thouroude B.,Thouroude B.,HBT77,,,42.053061,3.209189
+1297,Phaeophyceae,Sporochnales,Sporochnaceae,Carpomitra,costata var. mediterranea,(Feldmann) Feldmann,15/06/2026,15 jun 2026,France,"Planier, Marseille",15,"43°11'58.68""N","5°13'47.35""E",Thouroude B.,Thouroude B.,HBT78,,,43.199633,5.229819
+4802,Florideophyceae,Ceramiales,Rhodomelaceae,Laurencia,okamurae,Yamada,18/06/2026,18 jun. 2026,France,La Seyne-sur-Mer,0.1,"43°06'02.93""N","5°54'37.49""E",Thouroude B.,Thouroude B.,HBT79,,,43.100814,5.910414
+31,Florideophyceae,Plocamiales,Plocamiaceae,Plocamium,cartilagineum,(Linnaeus) P.S.Dixon,05/07/2026,05 jul.. 2026,France,"Planier, Marseille",25,"43°11'58.68""N","5°13'47.35""E",Thouroude B.,Thouroude B.,HBT80,,,43.199633,5.229819
+55,Phaeophyceae,Tilopteridales,Cutleriaceae,Cutleria,multifida,(Turner) Greville,06/07/2026,06 jul.. 2026,France,"North Frioul Island, Marseille",30,"43°17'13.63""N","5°18'54.21""E",Thouroude B.,Thouroude B.,HBT81,,,43.287119,5.315058
+47,Phaeophyceae,Tilopteridales,Cutleriaceae,Cutleria,sp.,Greville,06/07/2026,06 jul.. 2026,France,"North Frioul Island, Marseille",30,"43°17'13.63""N","5°18'54.21""E",Thouroude B.,Thouroude B.,HBT82,Uncertain identification,,43.287119,5.315058
+129,Florideophyceae,Gigartinales,Dumontiaceae,Dudresnaya,verticillata,(Withering) Le Jolis,08/06/2026,08 jun. 2026,France,"Dalton ship wreck, Planier, Marseille",25,"43°11'57.63""N","5°13'51.06""E",Thibaut T.,Thouroude B.,HBT83,Presence of gonimoblast,,43.199342,5.23085
+827,Phaeophyceae,Fucales,Sargassaceae,Sargassum,vulgare,C.Agardh,01/08/2026,aug. 2026,France,"L'Isolella, Ajaccio, Corsica",1,"41°50'55.89""N","8°45'35.73""E",Lamare V.,Verlaque M.,HBT84,Fertile,,41.848858,8.759925
+203787,Ulvophyceae,Cladophorales,Cladophorales familia incertae sedis,Mysticladia,prolifera,"J.O.F.Brito, V.Carneiro, Cassano, W.A.Gama & C.W.N.Moura",01/08/2026,aug. 2026,France,"L'Isolella, Ajaccio, Corsica",1,"41°50'55.89""N","8°45'35.73""E",Lamare V.,Verlaque M.,HBT85,,,41.848858,8.759925
+1566,Florideophyceae,Ceramiales,Rhodomelaceae,Digenea,simplex,(Wulfen) C.Agardh,01/08/2026,aug. 2026,France,"L'Isolella, Ajaccio, Corsica",1,"41°50'55.89""N","8°45'35.73""E",Lamare V.,Verlaque M.,HBT86,,,41.848858,8.759925
+174969,Florideophyceae,Corallinales,Corallinaceae,Jania,pedunculata var. adhaerens,"J.V.Lamouroux) A.S.Harvey, Woelkerling & Reviers",01/08/2026,aug. 2026,France,"L'Isolella, Ajaccio, Corsica",1,"41°50'55.89""N","8°45'35.73""E",Lamare V.,Verlaque M.,HBT87,,,41.848858,8.759925
+174145,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei,(J.Agardh) Kuntze,27/08/2026,27 aug. 2026,France,"Cap Caveaux, Frioul Islands, Marseille",35,"43°15'37.29""N","5°17'22.63""E",Thouroude B.,Thouroude B.,HBT88,,,43.260358,5.289619
+174145,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei,(J.Agardh) Kuntze,03/09/2026,03 sept. 2026,France,"Cap Caveaux, Frioul Islands, Marseille",35,"43°10'35.70""N","5°22'19.73""E",Guillemain D.,Thouroude B.,HBT89,,,43.176583,5.372147
+174145,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,montagnei,(J.Agardh) Kuntze,03/09/2026,03 sept. 2026,France,"Cap Caveaux, Frioul Islands, Marseille",35,"43°10'35.70""N","5°22'19.73""E",Guillemain D.,Thouroude B.,HBT90,,,43.176583,5.372147
+177548,Phaeophyceae,Fucales,Sargassaceae,Ericaria,brachycarpa,(J.Agardh) Molinari & Guiry,08/09/2026,08 sept. 2026,France,"Port du Niel, Hyères",0.5,"43°02'02.38""N","6°07'34.10""E",Thouroude B.,Thouroude B.,HBT91,,,43.033994,6.126139
+177530,Phaeophyceae,Fucales,Sargassaceae,Gongolaria,barbata,(Stackhouse) Kuntze,08/09/2026,08 sept. 2026,France,"Port du Niel, Hyères",0.5,"43°02'02.38""N","6°07'34.10""E",Thouroude B.,Thouroude B.,HBT92,,,43.033994,6.126139
+89345,Florideophyceae,Nemastomatales,Nemastomataceae,Nemastoma,dumontioides,J.Agardh,23/09/2026,23 Sep 2026,France,"Sec du soldat, Marseille",35,"43°12'11.38""N","5°28'28.93""E",Thouroude B.,Verlaque M.,HBT93,,,43.203161,5.474703
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script>
+/* ---------- Colonnes reconnues (insensible aux accents et à la casse) ---------- */
+const FIELDS = {
+  id:      ["species_id algaebase", "species_id", "algaebase id", "algaebase"],
+  classe:  ["class", "classe"],
+  ordre:   ["ordre", "order"],
+  famille: ["famille", "family"],
+  genre:   ["genre", "genus"],
+  espece:  ["espece", "species"],
+  auteurs: ["authorites", "autorites", "authorities", "auteurs", "authority"],
+  date:    ["date"],
+  date2:   ["date2"],
+  pays:    ["pays", "country"],
+  site:    ["site"],
+  prof:    ["profondeur", "depth"],
+  latDec:  ["lat_dec", "latitude_dec", "lat dec", "lat"],
+  lonDec:  ["lon_dec", "long_dec", "longitude_dec", "lon dec", "long dec", "lon", "lng"],
+  latRaw:  ["latitude"],
+  lonRaw:  ["longitude"],
+  recolte: ["recolte", "recolteur"],
+  ident:   ["identification", "identificateur"],
+  codeHG:  ["code hg", "code_hg", "codehg", "code", "code herbier"],
+  rem:     ["remarques", "remarque"],
+  codeH:   ["code h", "code_h"],
+  planche: ["planche", "planches", "scan", "scans", "image", "photo"]
+};
+const TAX = [
+  { k: "classe",  label: "Classe" },
+  { k: "ordre",   label: "Ordre" },
+  { k: "famille", label: "Famille" },
+  { k: "genre",   label: "Genre" },
+  { k: "espece",  label: "Espèce" }
+];
+const EMPTY = "__vide__";
+
+const norm = s => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/\s+/g, " ");
+const keyOf = s => norm(s).replace(/\s+/g, "");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const $ = id => document.getElementById(id);
+
+/* 43.1008, 43,1008, 43°06'02.93"N, 43°06.05'N ; S, W et O donnent un signe négatif */
+function parseCoord(v) {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  if (/^-?\d+(?:[.,]\d+)?$/.test(s)) return parseFloat(s.replace(",", "."));
+  const sign = /[SWO]/i.test(s) || s.startsWith("-") ? -1 : 1;
+  let m = s.match(/(\d+)[^\d.,]+(\d+)[^\d.,]+(\d+(?:[.,]\d+)?)/);
+  if (m) return sign * (+m[1] + +m[2] / 60 + parseFloat(m[3].replace(",", ".")) / 3600);
+  m = s.match(/(\d+)[^\d.,]+(\d+(?:[.,]\d+)?)/);
+  if (m) return sign * (+m[1] + parseFloat(m[2].replace(",", ".")) / 60);
+  return null;
+}
+
+const GROUPS = {
+  red:   { label: "Rhodophytes",  hex: "#B23A48", re: /florideo|bangio|compsopogono|rhodo|stylonemato|porphyrid|rhodella/ },
+  brown: { label: "Phéophycées",  hex: "#9C6B1E", re: /phaeo/ },
+  green: { label: "Chlorophytes", hex: "#3F8A4F", re: /ulvo|chloro|trebouxio|bryopsid|prasino|zygnem|charo|pedino/ },
+  cyan:  { label: "Cyanobactéries", hex: "#2A7F8F", re: /cyano/ },
+  other: { label: "Autres",       hex: "#7A868C", re: /.*/ }
+};
+const GORDER = { red: 0, brown: 1, green: 2, cyan: 3, other: 4 };
+const groupOf = c => { const n = norm(c); for (const k in GROUPS) if (GROUPS[k].re.test(n)) return k; return "other"; };
+
+function ringHtml(counts, total, size) {
+  let acc = 0; const stops = [];
+  for (const k of Object.keys(GORDER)) {
+    if (!counts[k]) continue;
+    const a = acc / total * 360, b = (acc += counts[k]) / total * 360;
+    stops.push(`${GROUPS[k].hex} ${a}deg ${b}deg`);
+  }
+  const inner = Math.round(size * 0.6);
+  return `<div class="ring" style="width:${size}px;height:${size}px;background:conic-gradient(${stops.join(",")})"><span style="width:${inner}px;height:${inner}px">${total}</span></div>`;
+}
+
+/* ---------- Carte ---------- */
+const map = L.map("map").setView([42.9, 5.5], 7);
+const bases = {
+  "Satellite (Esri)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Imagerie © Esri" }),
+  "Plan (OpenStreetMap)": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }),
+  "Bathymétrie (EMODnet)": L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", { layers: "emodnet:mean_atlas_land", format: "image/png", attribution: "© EMODnet Bathymetry" })
+};
+bases["Satellite (Esri)"].addTo(map);
+L.control.layers(bases, null, { position: "topright" }).addTo(map);
+L.control.scale({ imperial: false }).addTo(map);
+
+const cluster = L.markerClusterGroup({
+  showCoverageOnHover: false, maxClusterRadius: 45, disableClusteringAtZoom: CONFIG.disableClusteringAtZoom,
+  iconCreateFunction: c => {
+    const counts = {}; let total = 0;
+    c.getAllChildMarkers().forEach(m => { for (const k in m.options.counts) counts[k] = (counts[k] || 0) + m.options.counts[k]; total += m.options.total; });
+    const size = Math.round(30 + Math.min(Math.sqrt(total) * 2, 20));
+    return L.divIcon({ html: ringHtml(counts, total, size), className: "plain", iconSize: [size, size] });
+  }
+}).addTo(map);
+
+/* ---------- État ---------- */
+let rows = [], stations = [], markers = new Map();
+let folderFiles = [];   // planches choisies via le bouton dossier : { key, url, name }
+const FACETS = [...TAX, { k: "pays", label: "Pays" }];
+const state = { q: "", sel: {}, open: {}, find: {}, y0: null, y1: null };
+FACETS.forEach(f => { state.sel[f.k] = new Set(); state.open[f.k] = false; state.find[f.k] = ""; });
+
+function setStatus(msg, err) { const el = $("status"); el.textContent = msg; el.classList.toggle("err", !!err); }
+
+/* ---------- Lecture du CSV (UTF-8, repli Windows-1252 pour les exports Excel) ---------- */
+function parseFile(file, enc = "UTF-8") {
+  setStatus("Lecture de " + file.name + "…");
+  Papa.parse(file, {
+    header: true, skipEmptyLines: "greedy", transformHeader: h => h.trim(), encoding: enc,
+    complete: r => {
+      const bad = (r.meta.fields || []).join("").includes("\uFFFD") || r.data.slice(0, 200).some(o => Object.values(o).join("").includes("\uFFFD"));
+      if (bad && enc === "UTF-8") return parseFile(file, "windows-1252");
+      ingest(r.data, r.meta.fields || [], file.name);
+    },
+    error: e => setStatus("Lecture impossible : " + (e && e.message ? e.message : "fichier illisible") + ".", true)
+  });
+}
+
+function ingest(data, headers, fname) {
+  const col = {}, nh = headers.map(norm);
+  for (const f in FIELDS) { const i = nh.findIndex(h => FIELDS[f].includes(h)); if (i >= 0) col[f] = headers[i]; }
+  const get = (r, f) => (col[f] ? String(r[col[f]] ?? "").trim() : "");
+
+  let skipped = 0;
+  rows = [];
+  for (const r of data) {
+    const lat = parseCoord(get(r, "latDec")) ?? parseCoord(get(r, "latRaw"));
+    const lon = parseCoord(get(r, "lonDec")) ?? parseCoord(get(r, "lonRaw"));
+    if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
+      if (Object.values(r).some(v => String(v).trim())) skipped++;
+      continue;
+    }
+    const o = {};
+    for (const f in FIELDS) o[f] = get(r, f);
+    o.lat = lat; o.lon = lon;
+    o.group = groupOf(o.classe);
+    const y = (o.date + " " + o.date2).match(/\b(1[89]\d{2}|20\d{2})\b/);
+    o.year = y ? +y[1] : null;
+    o.search = norm([o.genre, o.espece, o.famille, o.ordre, o.classe, o.site, o.pays, o.codeHG, o.codeH, o.recolte, o.ident, o.rem].join(" "));
+    rows.push(o);
+  }
+
+  $("welcome").hidden = true;
+  $("filters").hidden = false;
+  FACETS.forEach(f => { state.sel[f.k].clear(); state.find[f.k] = ""; });
+  state.q = ""; $("q").value = "";
+  buildStaticFilters();
+  buildFacets();
+  render(true);
+
+  const n = new Set(rows.map(r => r.lat.toFixed(5) + "," + r.lon.toFixed(5))).size;
+  const missing = ["latDec", "latRaw"].some(f => col[f]) ? "" : " Aucune colonne de latitude reconnue.";
+  setStatus(`${fname ? fname + " : " : ""}${rows.length} spécimens sur ${n} stations` + (skipped ? `, ${skipped} lignes sans coordonnées lisibles ignorées` : "") + "." + missing, !rows.length);
+
+  const present = [...new Set(rows.map(r => r.group))].sort((a, b) => GORDER[a] - GORDER[b]);
+  $("legend").innerHTML = present.map(g => `<span><i style="background:${GROUPS[g].hex}"></i>${GROUPS[g].label}</span>`).join("");
+}
+
+/* ---------- Filtres (sélection multiple, en cascade pour la taxonomie) ---------- */
+const valOf = (r, k) => (k === "espece" ? (r.espece ? [r.genre, r.espece].filter(Boolean).join(" ") : "") : r[k]) || EMPTY;
+const passes = (r, k) => !state.sel[k].size || state.sel[k].has(valOf(r, k));
+
+function facetHtml(f, i) {
+  const k = f.k;
+  const taxIdx = TAX.findIndex(t => t.k === k);
+  const pool = taxIdx >= 0 ? rows.filter(r => TAX.slice(0, taxIdx).every(u => passes(r, u.k))) : rows;
+  const counts = new Map();
+  pool.forEach(r => { const v = valOf(r, k); counts.set(v, (counts.get(v) || 0) + 1); });
+  for (const v of [...state.sel[k]]) if (!counts.has(v)) state.sel[k].delete(v);   // retire les choix devenus impossibles
+  const vals = [...counts.keys()].sort(k === "classe"
+    ? (a, b) => GORDER[groupOf(a)] - GORDER[groupOf(b)] || a.localeCompare(b)
+    : (a, b) => (a === EMPTY) - (b === EMPTY) || a.localeCompare(b));
+  const sel = state.sel[k];
+  const summary = sel.size ? [...sel].map(v => v === EMPTY ? "non renseigné" : v).join(", ") : `tous (${vals.length})`;
+  const italic = k === "genre" || k === "espece";
+  const opts = vals.map(v => {
+    const sw = k === "classe" && v !== EMPTY ? `<span class="sw" style="background:${GROUPS[groupOf(v)].hex}"></span>` : "";
+    const txt = v === EMPTY ? `<span class="sub">(non renseigné)</span>` : `<span class="${italic ? "it" : ""}">${esc(v)}</span>`;
+    return `<label data-s="${esc(norm(v))}"><input type="checkbox" data-k="${k}" value="${esc(v)}"${sel.has(v) ? " checked" : ""}>${sw}${txt}<span class="n">${counts.get(v)}</span></label>`;
+  }).join("");
+  return `<details class="facet${sel.size ? " on" : ""}" data-k="${k}"${state.open[k] ? " open" : ""}>
+    <summary><span class="fl">${f.label}</span><span class="fs">${esc(summary)}</span></summary>
+    <div class="fbody">
+      ${vals.length > 8 ? `<input type="search" class="ff" data-k="${k}" placeholder="Filtrer la liste…" value="${esc(state.find[k])}">` : ""}
+      <div class="fopts">${opts || '<span class="sub">Aucune valeur</span>'}</div>
+      <div class="factions"><button class="linkbtn" data-act="all" data-k="${k}">tout cocher</button><button class="linkbtn" data-act="none" data-k="${k}">effacer</button></div>
+    </div></details>`;
+}
+
+function applyFind(k) {
+  const d = document.querySelector(`.facet[data-k="${k}"]`); if (!d) return;
+  const q = norm(state.find[k]);
+  d.querySelectorAll(".fopts label").forEach(l => l.hidden = !!q && !l.dataset.s.includes(q));
+}
+
+function buildFacets(focus) {
+  $("tax").innerHTML = TAX.map(facetHtml).join("");
+  $("paysFacet").innerHTML = facetHtml(FACETS[FACETS.length - 1]);
+  FACETS.forEach(f => applyFind(f.k));
+  if (focus) {
+    const el = document.querySelector(`.facet[data-k="${focus.k}"] ${focus.sel}`);
+    if (el) el.focus();
+  }
+}
+
+function buildStaticFilters() {
+  const ys = rows.map(r => r.year).filter(Boolean);
+  $("y0").value = ys.length ? Math.min(...ys) : "";
+  $("y1").value = ys.length ? Math.max(...ys) : "";
+  state.y0 = state.y1 = null;
+}
+
+function visible(r) {
+  for (const f of FACETS) if (!passes(r, f.k)) return false;
+  if (state.y0 && (r.year == null || r.year < state.y0)) return false;
+  if (state.y1 && (r.year == null || r.year > state.y1)) return false;
+  if (state.q && !state.q.split(" ").every(w => r.search.includes(w))) return false;
+  return true;
+}
+
+/* ---------- Affichage ---------- */
+function render(fit) {
+  const groups = new Map();
+  rows.filter(visible).forEach(r => {
+    const k = r.lat.toFixed(5) + "," + r.lon.toFixed(5);
+    if (!groups.has(k)) groups.set(k, { key: k, lat: r.lat, lon: r.lon, site: r.site, pays: r.pays, latRaw: r.latRaw, lonRaw: r.lonRaw, rows: [] });
+    groups.get(k).rows.push(r);
+  });
+  stations = [...groups.values()].sort((a, b) => (a.site || "").localeCompare(b.site || ""));
+
+  map.closePopup();
+  cluster.clearLayers();
+  markers.clear();
+  const list = stations.map(s => {
+    const counts = {};
+    s.rows.forEach(r => counts[r.group] = (counts[r.group] || 0) + 1);
+    const total = s.rows.length, size = Math.round(22 + Math.min(Math.sqrt(total) * 3, 16));
+    const m = L.marker([s.lat, s.lon], {
+      icon: L.divIcon({ html: ringHtml(counts, total, size), className: "plain", iconSize: [size, size] }),
+      counts, total, title: s.site || s.key
+    }).bindPopup(() => popup(s), { maxWidth: 400, maxHeight: 380 });
+    markers.set(s.key, m);
+    return m;
+  });
+  cluster.addLayers(list);
+
+  $("stations").innerHTML = stations.length
+    ? stations.map(s => `<li><button data-k="${s.key}"><span class="nm">${esc(s.site || "Site sans nom")}<br><span class="sub">${esc(s.pays)}</span></span><span class="n">${s.rows.length}</span></button></li>`).join("")
+    : `<li class="sub" style="padding:6px 0">Aucune station ne correspond aux filtres.</li>`;
+
+  if (fit) fitAll();
+}
+
+/* Planches : liste de listes d'URL candidates (une liste par planche) */
+function planchesFor(r) {
+  const names = r.planche ? r.planche.split(/[;|]/).map(s => s.trim()).filter(Boolean) : (r.codeHG ? [r.codeHG] : []);
+  const out = [];
+  for (const n of names) {
+    const hasExt = /\.[a-z0-9]{2,5}$/i.test(n);
+    if (folderFiles.length) {
+      const k = keyOf(hasExt ? n.replace(/\.[a-z0-9]{2,5}$/i, "") : n);
+      folderFiles.filter(f => f.key === k || (f.key.startsWith(k) && /[_\-.(]/.test(f.key[k.length]))).forEach(f => out.push([f.url]));
+    } else {
+      out.push(hasExt ? [CONFIG.planchesDir + encodeURIComponent(n)] : CONFIG.extensions.map(e => CONFIG.planchesDir + encodeURIComponent(n) + e));
+    }
+  }
+  return out;
+}
+window.nextSrc = img => {
+  const l = JSON.parse(img.dataset.srcs), i = +img.dataset.i + 1;
+  if (i < l.length) { img.dataset.i = i; img.src = l[i]; } else img.closest(".th").remove();
+};
+
+function popup(s) {
+  const items = [...s.rows].sort((a, b) => GORDER[a.group] - GORDER[b.group] || (a.genre + a.espece).localeCompare(b.genre + b.espece));
+  const coord = `${s.lat.toFixed(5)}, ${s.lon.toFixed(5)}` + (s.latRaw && !/^-?[\d.,]+$/.test(s.latRaw) ? ` (${esc(s.latRaw)} ${esc(s.lonRaw)})` : "");
+  return `<div class="pp"><h3>${esc(s.site || "Site sans nom")}${s.pays ? ", " + esc(s.pays) : ""}</h3><div class="coord">${coord}</div><ul>` +
+    items.map(r => {
+      const name = [r.genre, r.espece].filter(Boolean).join(" ") || r.famille || r.ordre || r.classe || "Taxon non renseigné";
+      const meta = [
+        r.date && (r.date + (r.date2 ? " – " + r.date2 : "")),
+        r.prof && (/\d$/.test(r.prof) ? r.prof + " m" : r.prof),
+        r.recolte && "récolte " + r.recolte,
+        r.ident && "identification " + r.ident,
+        r.codeH && "code H " + r.codeH
+      ].filter(Boolean).map(esc).join(", ");
+      const ab = /^\d+$/.test(r.id) ? ` <a href="https://www.algaebase.org/search/species/detail/?species_id=${r.id}" target="_blank" rel="noopener">AlgaeBase</a>` : "";
+      const herb = /^HBT/i.test(r.codeHG) ? "hbt" : /^HG/i.test(r.codeHG) ? "hg-h" : "";
+      const hg = r.codeHG ? `<span class="hg ${herb}" title="${herb === "hbt" ? "Planche HBT" : "Planche HG"}">${esc(r.codeHG)}</span>` : "";
+      const cap = esc(`<i>${esc(name)}</i> ${esc(r.auteurs)}<br>${r.codeHG ? esc(r.codeHG) + ", " : ""}${esc(s.site)}${r.date ? ", " + esc(r.date) : ""}`);
+      const th = planchesFor(r).map(l =>
+        `<button class="th" data-cap="${cap}"><img loading="lazy" src="${esc(l[0])}" data-srcs="${esc(JSON.stringify(l))}" data-i="0" onerror="nextSrc(this)" alt="Planche ${esc(r.codeHG)}"></button>`).join("");
+      return `<li style="--c:${GROUPS[r.group].hex}"><div class="sp"><div class="txt"><div class="tx"><i>${esc(name)}</i> <span class="au">${esc(r.auteurs)}</span></div>` +
+        (meta ? `<div class="meta">${meta}</div>` : "") + (r.rem ? `<div class="rem">${esc(r.rem)}</div>` : "") + ab +
+        `</div>${hg}</div>${th ? `<div class="thumbs">${th}</div>` : ""}</li>`;
+    }).join("") + `</ul></div>`;
+}
+
+function fitAll() {
+  if (!stations.length) return;
+  map.fitBounds(L.latLngBounds(stations.map(s => [s.lat, s.lon])).pad(0.15), { maxZoom: 14 });
+}
+
+/* ---------- Visionneuse ---------- */
+let lbList = [], lbIdx = 0;
+function lbShow() {
+  const t = lbList[lbIdx];
+  $("lbStage").classList.remove("zoom");
+  $("lbImg").src = t.src;
+  $("lbCap").innerHTML = t.cap + (lbList.length > 1 ? ` <span class="sub">(${lbIdx + 1}/${lbList.length})</span>` : "");
+  $("lbPrev").disabled = lbIdx === 0;
+  $("lbNext").disabled = lbIdx === lbList.length - 1;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest(".th"); if (!b) return;
+  const all = [...b.closest(".pp").querySelectorAll(".th")];
+  lbList = all.map(x => ({ src: x.querySelector("img").currentSrc || x.querySelector("img").src, cap: x.dataset.cap }));
+  lbIdx = all.indexOf(b);
+  $("lb").hidden = false; lbShow(); $("lbClose").focus();
+});
+$("lbClose").onclick = () => { $("lb").hidden = true; };
+$("lbPrev").onclick = () => { if (lbIdx > 0) { lbIdx--; lbShow(); } };
+$("lbNext").onclick = () => { if (lbIdx < lbList.length - 1) { lbIdx++; lbShow(); } };
+$("lbImg").onclick = e => {
+  const st = $("lbStage"), zoomed = st.classList.toggle("zoom");
+  if (zoomed) { const r = e.target.getBoundingClientRect(), fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+    requestAnimationFrame(() => { st.scrollLeft = fx * st.scrollWidth - st.clientWidth / 2; st.scrollTop = fy * st.scrollHeight - st.clientHeight / 2; }); }
+};
+document.addEventListener("keydown", e => {
+  if ($("lb").hidden) return;
+  if (e.key === "Escape") $("lb").hidden = true;
+  if (e.key === "ArrowLeft") $("lbPrev").click();
+  if (e.key === "ArrowRight") $("lbNext").click();
+});
+
+/* ---------- Interactions ---------- */
+let qt;
+$("q").addEventListener("input", e => { clearTimeout(qt); qt = setTimeout(() => { state.q = norm(e.target.value); render(); }, 150); });
+const filtersEl = $("filters");
+filtersEl.addEventListener("change", e => {
+  const cb = e.target.closest('input[type=checkbox][data-k]'); if (!cb) return;
+  const k = cb.dataset.k;
+  cb.checked ? state.sel[k].add(cb.value) : state.sel[k].delete(cb.value);
+  buildFacets({ k, sel: `input[type=checkbox][value="${CSS.escape(cb.value)}"]` });
+  render(true);
+});
+filtersEl.addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  const k = b.dataset.k;
+  if (b.dataset.act === "none") state.sel[k].clear();
+  else document.querySelectorAll(`.facet[data-k="${k}"] .fopts label:not([hidden]) input`).forEach(i => state.sel[k].add(i.value));
+  buildFacets(); render(true);
+});
+filtersEl.addEventListener("input", e => {
+  const f = e.target.closest(".ff"); if (!f) return;
+  state.find[f.dataset.k] = f.value; applyFind(f.dataset.k);
+});
+filtersEl.addEventListener("toggle", e => {
+  const d = e.target.closest(".facet"); if (d) state.open[d.dataset.k] = d.open;
+}, true);
+$("resetTax").onclick = () => { FACETS.forEach(f => { state.sel[f.k].clear(); state.find[f.k] = ""; }); buildFacets(); render(true); };
+$("y0").onchange = e => { state.y0 = +e.target.value || null; render(); };
+$("y1").onchange = e => { state.y1 = +e.target.value || null; render(); };
+$("fit").onclick = fitAll;
+$("stations").addEventListener("click", e => {
+  const b = e.target.closest("button[data-k]"); if (!b) return;
+  const m = markers.get(b.dataset.k);
+  cluster.zoomToShowLayer(m, () => m.openPopup());
+  if (matchMedia("(max-width: 760px)").matches) togglePanel(false);
+});
+document.querySelectorAll(".csvInput").forEach(inp => inp.onchange = e => { if (e.target.files[0]) parseFile(e.target.files[0]); e.target.value = ""; });
+
+$("dir").onchange = e => {
+  folderFiles.forEach(f => URL.revokeObjectURL(f.url));
+  const files = [...e.target.files];
+  const ok = files.filter(f => /\.(jpe?g|png|webp|gif)$/i.test(f.name));
+  const tif = files.filter(f => /\.tiff?$/i.test(f.name)).length;
+  folderFiles = ok.map(f => ({ name: f.name, key: keyOf(f.name.replace(/\.[^.]+$/, "")), url: URL.createObjectURL(f) }));
+  $("dirLabel").textContent = `${folderFiles.length} planches`;
+  if (tif) setStatus(`${tif} fichiers TIFF ignorés : le navigateur ne sait pas les afficher, convertis-les en JPEG.`, true);
+  map.closePopup();
+};
+
+["dragenter", "dragover"].forEach(t => document.addEventListener(t, e => { e.preventDefault(); document.body.classList.add("dragging"); }));
+["dragleave", "drop"].forEach(t => document.addEventListener(t, e => { e.preventDefault(); if (t === "drop" || !e.relatedTarget) document.body.classList.remove("dragging"); }));
+document.addEventListener("drop", e => {
+  const f = [...(e.dataTransfer?.files || [])].find(f => /\.csv$/i.test(f.name) || f.type === "text/csv");
+  if (f) parseFile(f); else if (e.dataTransfer?.files?.length) setStatus("Dépose un fichier .csv.", true);
+});
+
+function togglePanel(open) {
+  $("panel").classList.toggle("open", open);
+  $("toggle").setAttribute("aria-expanded", open);
+  $("toggle").textContent = open ? "Voir la carte" : "Filtres et stations";
+}
+$("toggle").onclick = () => togglePanel(!$("panel").classList.contains("open"));
+
+/* ---------- Chargement automatique : donnees.csv (en ligne), sinon données intégrées ---------- */
+function parseText(txt, name) {
+  const r = Papa.parse(txt.trim(), { header: true, skipEmptyLines: "greedy", transformHeader: h => h.trim() });
+  ingest(r.data, r.meta.fields || [], name);
+}
+(async function autoload() {
+  document.title = CONFIG.title;
+  document.querySelector("h1").textContent = CONFIG.title;
+  if (location.protocol.startsWith("http")) {
+    try {
+      const res = await fetch(CONFIG.dataFile, { cache: "no-store" });
+      if (res.ok) { const t = await res.text(); if (t.trim()) return parseText(t, ""); }
+    } catch (e) { /* pas de fichier en ligne : on passe aux données intégrées */ }
+  }
+  const emb = document.getElementById("embedded-data");
+  if (emb && emb.textContent.trim()) parseText(emb.textContent, "");
+})();
+</script>
+</body>
+</html>
