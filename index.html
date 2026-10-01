@@ -1,23 +1,22 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Stations d'échantillonnage</title>
+<title>Sampling stations</title>
 
 <script>
 /* ============================================================
    CONFIGURATION
-   Planches d'herbier : place les scans dans un dossier "planches"
-   à côté de ce fichier HTML, nommés d'après le Code HG
-   (ex. planches/HG1234.jpg). Ou utilise le bouton
-   « Dossier des planches » pour choisir un dossier n'importe où.
+   This English page lives in an "en" subfolder and reuses the data
+   file and the herbarium scans of the French page (one level up).
+   Scans are named after the specimen code (e.g. planches/HG01.jpg).
    ============================================================ */
 const CONFIG = {
-  title: "Stations d'échantillonnage",
-  // Fichier de données chargé automatiquement quand la page est hébergée en ligne
-  dataFile: "donnees.csv",
-  planchesDir: "planches/",
+  title: "Sampling stations",
+  // Data file loaded automatically when the page is served online
+  dataFile: "../donnees.csv",
+  planchesDir: "../planches/",
   extensions: [".jpg", ".jpeg", ".png", ".webp", ".JPG", ".JPEG", ".PNG"],
   disableClusteringAtZoom: 13
 };
@@ -48,10 +47,15 @@ html, body { height: 100%; margin: 0; }
 body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--sans); }
 [hidden] { display: none !important; }
 
-.app { display: grid; grid-template-columns: 350px 1fr; height: 100%; }
-#map { height: 100%; background: #2b4a57; }
+.app { display: flex; height: 100%; }
+#map { height: 100%; flex: 1; min-width: 0; background: #2b4a57; }
+.panel-ctl {
+  font: 500 0.85rem var(--sans); color: #17262E; background: #fff; cursor: pointer;
+  border: 2px solid rgba(0,0,0,.2); background-clip: padding-box; border-radius: 4px; padding: 5px 10px;
+}
+.panel-ctl:hover { background-color: #F3F6F5; }
 
-aside { background: var(--paper); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+aside { width: 350px; flex: none; transition: margin-left .25s ease; background: var(--paper); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .head { padding: 20px 20px 12px; }
 h1 { font: 600 1.45rem/1.15 var(--serif); margin: 0 0 4px; letter-spacing: -0.01em; }
 .status { color: var(--ink-soft); font-size: 0.87rem; margin: 0; }
@@ -155,10 +159,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-with
 #lb button { font: 500 0.9rem var(--sans); color: #E3EAEC; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 6px; padding: 7px 14px; cursor: pointer; }
 #lb button:disabled { opacity: .35; cursor: default; }
 
+body.collapsed aside { margin-left: -350px; visibility: hidden; transition: margin-left .25s ease, visibility 0s .25s; }
 .toggle { display: none; }
 @media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; }
+  .panel-ctl { display: none; }
+  body.collapsed aside { margin-left: 0; visibility: visible; }
   aside {
+    width: auto; margin-left: 0;
     position: fixed; z-index: 1000; left: 0; right: 0; bottom: 0; height: 75%;
     border-right: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0;
     transform: translateY(100%); transition: transform .25s ease; padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -172,7 +179,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-with
 }
 @media (prefers-reduced-motion: reduce) { aside { transition: none; } }
 
-/* =================== Téléphone (écrans étroits uniquement) =================== */
+/* =================== Phones (narrow screens only) =================== */
 .m-only { display: none; }
 @media (max-width: 760px) {
   body { display: flex; flex-direction: column; }
@@ -180,7 +187,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-with
   .toggle { display: none !important; }
   input[type=search], input[type=number], select, .ff { font-size: 16px !important; }
 
-  /* En-tête compact */
+  /* Compact header */
   #mTop { display: block; padding: 8px 14px 7px; background: var(--paper); border-bottom: 1px solid var(--line); }
   #mTop .mt-title { font: 600 1.05rem/1.2 var(--serif); }
   #mTop .mt-stat { font-size: 0.8rem; color: var(--ink-soft); }
@@ -189,21 +196,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-with
   body.mp-stations .b-stations h2 { display: none; }
   body.mp-stations .b-stations { border-top: 0; padding-top: 4px; }
 
-  /* Contrôles de carte */
+  /* Map controls */
   .leaflet-control-zoom { display: none; }
   .leaflet-touch .leaflet-control-layers-toggle { width: 44px; height: 44px; }
   .leaflet-bottom { bottom: 64px; }
   .leaflet-marker-icon.plain::after { content: ""; position: absolute; inset: -9px; }
   .leaflet-marker-icon.sel .ring { box-shadow: 0 0 0 3px #fff, 0 0 0 6px #1F5E73, 0 2px 6px rgba(0,0,0,.4); }
 
-  /* Barre de boutons du bas */
+  /* Bottom button bar */
   #mBar { display: flex; gap: 8px; position: fixed; z-index: 1200; left: 50%; transform: translateX(-50%);
     bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
   #mBar button { font: 600 0.95rem var(--sans); color: var(--ink); background: var(--panel); border: 1px solid var(--line);
     border-radius: 22px; padding: 11px 20px; box-shadow: 0 2px 10px rgba(0,0,0,.25); white-space: nowrap; }
   #mBar button.on { background: var(--sea); border-color: var(--sea); color: #fff; }
 
-  /* Panneau filtres / stations : plein écran */
+  /* Filters / stations panel: full screen */
   aside {
     position: fixed !important; z-index: 2000; inset: 0 !important; height: auto !important; width: auto !important;
     margin: 0 !important; visibility: visible !important; border: 0 !important; border-radius: 0 !important;
@@ -229,7 +236,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-with
   .factions .linkbtn { font-size: 0.9rem; padding: 6px 0; }
   .stations li button { padding: 12px 6px; font-size: 1rem; }
 
-  /* Fiche station */
+  /* Station sheet */
   #sheet { display: flex; flex-direction: column; position: fixed; z-index: 1500; left: 0; right: 0; bottom: 0;
     height: 55vh; height: 55dvh; background: #fff; color: #17262E; border-radius: 16px 16px 0 0;
     box-shadow: 0 -4px 22px rgba(0,0,0,.28); transform: translateY(105%);
@@ -248,7 +255,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-with
   #sheet .hg { font-size: 0.85rem; padding: 5px 8px; }
   #sheet .th { width: 78px; height: 104px; }
 
-  /* Visionneuse */
+  /* Viewer */
   #lb .nav .hint { display: none; }
   #lb .nav { flex-wrap: nowrap; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)); }
   #lb button { min-width: 44px; min-height: 44px; padding: 6px 8px; }
@@ -271,75 +278,75 @@ button:focus-visible, input:focus-visible, select:focus-visible, .btn:focus-with
 </header>
 <div class="app">
   <aside id="panel">
-    <div class="m-head m-only"><button id="mClose">‹ Carte</button><strong id="mPanelTitle"></strong><button id="mClear">Tout effacer</button></div>
+    <div class="m-head m-only"><button id="mClose">‹ Map</button><strong id="mPanelTitle"></strong><button id="mClear">Clear all</button></div>
     <div class="head">
-      <h1>Stations d'échantillonnage</h1>
-      <p class="status" id="status">Aucun fichier chargé.</p>
+      <h1>Sampling stations</h1>
+      <p class="status" id="status">No file loaded.</p>
       <div class="legend" id="legend"></div>
     </div>
     <div class="scroll">
       <div class="block" id="welcome">
         <div class="drop">
-          <strong>Ouvre ton fichier CSV</strong>
-          Exporte ton tableur en CSV, puis choisis-le avec le bouton ci-dessous ou glisse-le sur la carte.
-          <div style="margin-top:12px"><label class="btn primary">Choisir le fichier CSV<input type="file" accept=".csv,text/csv" class="csvInput"></label></div>
+          <strong>Open your CSV file</strong>
+          Export your spreadsheet as CSV, then pick it with the button below or drop it onto the map.
+          <div style="margin-top:12px"><label class="btn primary">Choose CSV file<input type="file" accept=".csv,text/csv" class="csvInput"></label></div>
         </div>
       </div>
 
       <div id="filters" hidden>
         <div class="block">
-          <input type="search" id="q" placeholder="Taxon, site, code HG…" aria-label="Rechercher">
+          <input type="search" id="q" placeholder="Taxon, site, specimen code…" aria-label="Search">
         </div>
         <div class="block">
-          <h2>Taxonomie <button class="linkbtn" id="resetTax">réinitialiser</button></h2>
+          <h2>Taxonomy <button class="linkbtn" id="resetTax">reset</button></h2>
           <div id="tax"></div>
         </div>
         <div class="block">
-          <h2>Lieu et période</h2>
+          <h2>Place and period</h2>
           <div id="paysFacet"></div>
           <div class="row2">
-            <div><label for="y0">Année, de</label><input type="number" id="y0" inputmode="numeric"></div>
-            <div><label for="y1">à</label><input type="number" id="y1" inputmode="numeric"></div>
+            <div><label for="y0">Year, from</label><input type="number" id="y0" inputmode="numeric"></div>
+            <div><label for="y1">to</label><input type="number" id="y1" inputmode="numeric"></div>
           </div>
         </div>
         <div class="block">
-          <h2>Stations <button class="linkbtn" id="fit">tout afficher</button></h2>
+          <h2>Stations <button class="linkbtn" id="fit">show all</button></h2>
           <ul class="stations" id="stations"></ul>
         </div>
       </div>
     </div>
     <div class="foot">
-      <label class="btn">Ouvrir un CSV<input type="file" accept=".csv,text/csv" class="csvInput"></label>
-      <label class="btn" id="dirBtn"><span id="dirLabel">Dossier des planches</span><input type="file" id="dir" webkitdirectory multiple></label>
+      <label class="btn">Open a CSV<input type="file" accept=".csv,text/csv" class="csvInput"></label>
+      <label class="btn" id="dirBtn"><span id="dirLabel">Herbarium sheets folder</span><input type="file" id="dir" webkitdirectory multiple></label>
     </div>
     <div class="m-foot m-only"><button id="mApply"></button></div>
   </aside>
   <div id="map"></div>
 </div>
-<button class="toggle" id="toggle" aria-controls="panel" aria-expanded="false">Filtres et stations</button>
+<button class="toggle" id="toggle" aria-controls="panel" aria-expanded="false">Filters and stations</button>
 
-<nav id="mBar" class="m-only"><button id="mFilters">Filtres</button><button id="mStations">Stations</button></nav>
-<section id="sheet" class="m-only" aria-label="Fiche station">
-  <div class="sheet-head" id="sheetHead"><span class="grab"></span><button id="sheetClose" aria-label="Fermer">✕</button></div>
+<nav id="mBar" class="m-only"><button id="mFilters">Filters</button><button id="mStations">Stations</button></nav>
+<section id="sheet" class="m-only" aria-label="Station details">
+  <div class="sheet-head" id="sheetHead"><span class="grab"></span><button id="sheetClose" aria-label="Close">✕</button></div>
   <div class="sheet-body" id="sheetBody"></div>
 </section>
 
-<div id="lb" hidden role="dialog" aria-modal="true" aria-label="Planche d'herbier">
-  <div class="bar"><div class="cap" id="lbCap"></div><button id="lbClose">Fermer</button></div>
+<div id="lb" hidden role="dialog" aria-modal="true" aria-label="Herbarium sheet">
+  <div class="bar"><div class="cap" id="lbCap"></div><button id="lbClose">Close</button></div>
   <div class="stage" id="lbStage"><img id="lbImg" alt=""></div>
   <div class="nav">
-    <button id="lbPrev">Précédente</button>
-    <button id="lbOut" aria-label="Dézoomer" title="Dézoomer">−</button>
-    <button id="lbRotL" aria-label="Tourner à gauche" title="Tourner à gauche">↺</button>
-    <button id="lbFit">Ajuster</button>
-    <button id="lbIn" aria-label="Zoomer" title="Zoomer">+</button>
-    <button id="lbRotR" aria-label="Tourner à droite" title="Tourner à droite">↻</button>
-    <button id="lbNext">Suivante</button>
-    <span class="hint">Molette ou pincement pour zoomer, glisser pour déplacer, double-clic pour zoomer ou ajuster, R pour tourner</span>
+    <button id="lbPrev">Previous</button>
+    <button id="lbOut" aria-label="Zoom out" title="Zoom out">−</button>
+    <button id="lbRotL" aria-label="Rotate left" title="Rotate left">↺</button>
+    <button id="lbFit">Fit</button>
+    <button id="lbIn" aria-label="Zoom in" title="Zoom in">+</button>
+    <button id="lbRotR" aria-label="Rotate right" title="Rotate right">↻</button>
+    <button id="lbNext">Next</button>
+    <span class="hint">Scroll or pinch to zoom, drag to move, double-click to zoom or fit, R to rotate</span>
   </div>
 </div>
 
-<!-- Données intégrées (optionnel) : colle ici le contenu du CSV pour une page autonome -->
+<!-- Embedded data (optional): paste the CSV content here for a self-contained page -->
 <script type="text/csv" id="embedded-data">
 species_id Algaebase,Class,Ordre,Famille,Genre,Espèce,Authorités,Date,Date2,Pays,Site,Profondeur,Latitude,Longitude,Recolte,Identification,Code,Remarques,,Lat_dec,Long_dec
 21470,Ulvophyceae,Bryopsidales,Caulerpaceae,Caulerpa,cylindracea,Sonder,12 September 2025,12 September 2025,France,Sausset les pins,0.5,"43°19′41,2″N","5°5′52,1″E","Blanfuné A., Borriglionne M., Thouroude B., Verlaque M.",Thouroude B.,HG01,,,43.328111,5.097806
@@ -620,11 +627,11 @@ const FIELDS = {
   planche: ["planche", "planches", "scan", "scans", "image", "photo"]
 };
 const TAX = [
-  { k: "classe",  label: "Classe" },
-  { k: "ordre",   label: "Ordre" },
-  { k: "famille", label: "Famille" },
-  { k: "genre",   label: "Genre" },
-  { k: "espece",  label: "Espèce" }
+  { k: "classe",  label: "Class" },
+  { k: "ordre",   label: "Order" },
+  { k: "famille", label: "Family" },
+  { k: "genre",   label: "Genus" },
+  { k: "espece",  label: "Species" }
 ];
 const EMPTY = "__vide__";
 
@@ -647,11 +654,11 @@ function parseCoord(v) {
 }
 
 const GROUPS = {
-  red:   { label: "Rhodophytes",  hex: "#B23A48", re: /florideo|bangio|compsopogono|rhodo|stylonemato|porphyrid|rhodella/ },
-  brown: { label: "Phéophycées",  hex: "#9C6B1E", re: /phaeo/ },
-  green: { label: "Chlorophytes", hex: "#3F8A4F", re: /ulvo|chloro|trebouxio|bryopsid|prasino|zygnem|charo|pedino/ },
-  cyan:  { label: "Cyanobactéries", hex: "#2A7F8F", re: /cyano/ },
-  other: { label: "Autres",       hex: "#7A868C", re: /.*/ }
+  red:   { label: "Red algae",  hex: "#B23A48", re: /florideo|bangio|compsopogono|rhodo|stylonemato|porphyrid|rhodella/ },
+  brown: { label: "Brown algae",  hex: "#9C6B1E", re: /phaeo/ },
+  green: { label: "Green algae", hex: "#3F8A4F", re: /ulvo|chloro|trebouxio|bryopsid|prasino|zygnem|charo|pedino/ },
+  cyan:  { label: "Cyanobacteria", hex: "#2A7F8F", re: /cyano/ },
+  other: { label: "Other",       hex: "#7A868C", re: /.*/ }
 };
 const GORDER = { red: 0, brown: 1, green: 2, cyan: 3, other: 4 };
 const groupOf = c => { const n = norm(c); for (const k in GROUPS) if (GROUPS[k].re.test(n)) return k; return "other"; };
@@ -668,11 +675,34 @@ function ringHtml(counts, total, size) {
 }
 
 /* ---------- Carte ---------- */
-const map = L.map("map").setView([42.9, 5.5], 7);
+const map = L.map("map", { zoomControl: false }).setView([42.9, 5.5], 7);
+
+/* Show / hide the side panel */
+const PanelControl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const b = L.DomUtil.create("button", "panel-ctl");
+    b.type = "button"; b.id = "panelCtl";
+    b.setAttribute("aria-controls", "panel");
+    L.DomEvent.disableClickPropagation(b);
+    b.onclick = () => setCollapsed(!document.body.classList.contains("collapsed"));
+    return b;
+  }
+});
+new PanelControl().addTo(map);
+L.control.zoom({ position: "topleft" }).addTo(map);
+function setCollapsed(c) {
+  document.body.classList.toggle("collapsed", c);
+  const b = document.getElementById("panelCtl");
+  b.textContent = c ? "☰ Show filters" : "‹ Hide panel";
+  b.setAttribute("aria-expanded", String(!c));
+  setTimeout(() => map.invalidateSize(), 280);
+}
+setCollapsed(false);
 const bases = {
-  "Satellite (Esri)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Imagerie © Esri" }),
-  "Plan (OpenStreetMap)": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }),
-  "Bathymétrie (EMODnet)": L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", { layers: "emodnet:mean_atlas_land", format: "image/png", attribution: "© EMODnet Bathymetry" })
+  "Satellite (Esri)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Imagery © Esri" }),
+  "Street map (OpenStreetMap)": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }),
+  "Bathymetry (EMODnet)": L.tileLayer.wms("https://ows.emodnet-bathymetry.eu/wms", { layers: "emodnet:mean_atlas_land", format: "image/png", attribution: "© EMODnet Bathymetry" })
 };
 bases["Satellite (Esri)"].addTo(map);
 L.control.layers(bases, null, { position: "topright" }).addTo(map);
@@ -690,8 +720,8 @@ const cluster = L.markerClusterGroup({
 
 /* ---------- État ---------- */
 let rows = [], stations = [], markers = new Map();
-let folderFiles = [];   // planches choisies via le bouton dossier : { key, url, name }
-const FACETS = [...TAX, { k: "pays", label: "Pays" }];
+let folderFiles = [];   // scans picked with the folder button: { key, url, name }
+const FACETS = [...TAX, { k: "pays", label: "Country" }];
 const state = { q: "", sel: {}, open: {}, find: {}, y0: null, y1: null };
 FACETS.forEach(f => { state.sel[f.k] = new Set(); state.open[f.k] = false; state.find[f.k] = ""; });
 
@@ -699,7 +729,7 @@ function setStatus(msg, err) { const el = $("status"); el.textContent = msg; el.
 
 /* ---------- Lecture du CSV (UTF-8, repli Windows-1252 pour les exports Excel) ---------- */
 function parseFile(file, enc = "UTF-8") {
-  setStatus("Lecture de " + file.name + "…");
+  setStatus("Reading " + file.name + "…");
   Papa.parse(file, {
     header: true, skipEmptyLines: "greedy", transformHeader: h => h.trim(), encoding: enc,
     complete: r => {
@@ -707,7 +737,7 @@ function parseFile(file, enc = "UTF-8") {
       if (bad && enc === "UTF-8") return parseFile(file, "windows-1252");
       ingest(r.data, r.meta.fields || [], file.name);
     },
-    error: e => setStatus("Lecture impossible : " + (e && e.message ? e.message : "fichier illisible") + ".", true)
+    error: e => setStatus("Could not read the file: " + (e && e.message ? e.message : "unreadable file") + ".", true)
   });
 }
 
@@ -744,8 +774,8 @@ function ingest(data, headers, fname) {
   render(true);
 
   const n = new Set(rows.map(r => r.lat.toFixed(5) + "," + r.lon.toFixed(5))).size;
-  const missing = ["latDec", "latRaw"].some(f => col[f]) ? "" : " Aucune colonne de latitude reconnue.";
-  setStatus(`${fname ? fname + " : " : ""}${rows.length} spécimens sur ${n} stations` + (skipped ? `, ${skipped} lignes sans coordonnées lisibles ignorées` : "") + "." + missing, !rows.length);
+  const missing = ["latDec", "latRaw"].some(f => col[f]) ? "" : " No latitude column recognised.";
+  setStatus(`${fname ? fname + " : " : ""}${rows.length} specimens at ${n} stations` + (skipped ? `, ${skipped} rows without readable coordinates skipped` : "") + "." + missing, !rows.length);
 
   const present = [...new Set(rows.map(r => r.group))].sort((a, b) => GORDER[a] - GORDER[b]);
   $("legend").innerHTML = present.map(g => `<span><i style="background:${GROUPS[g].hex}"></i>${GROUPS[g].label}</span>`).join("");
@@ -761,24 +791,24 @@ function facetHtml(f, i) {
   const pool = taxIdx >= 0 ? rows.filter(r => TAX.slice(0, taxIdx).every(u => passes(r, u.k))) : rows;
   const counts = new Map();
   pool.forEach(r => { const v = valOf(r, k); counts.set(v, (counts.get(v) || 0) + 1); });
-  for (const v of [...state.sel[k]]) if (!counts.has(v)) state.sel[k].delete(v);   // retire les choix devenus impossibles
+  for (const v of [...state.sel[k]]) if (!counts.has(v)) state.sel[k].delete(v);   // drop choices that are no longer possible
   const vals = [...counts.keys()].sort(k === "classe"
     ? (a, b) => GORDER[groupOf(a)] - GORDER[groupOf(b)] || a.localeCompare(b)
     : (a, b) => (a === EMPTY) - (b === EMPTY) || a.localeCompare(b));
   const sel = state.sel[k];
-  const summary = sel.size ? [...sel].map(v => v === EMPTY ? "non renseigné" : v).join(", ") : `tous (${vals.length})`;
+  const summary = sel.size ? [...sel].map(v => v === EMPTY ? "not specified" : v).join(", ") : `all (${vals.length})`;
   const italic = k === "genre" || k === "espece";
   const opts = vals.map(v => {
     const sw = k === "classe" && v !== EMPTY ? `<span class="sw" style="background:${GROUPS[groupOf(v)].hex}"></span>` : "";
-    const txt = v === EMPTY ? `<span class="sub">(non renseigné)</span>` : `<span class="${italic ? "it" : ""}">${esc(v)}</span>`;
+    const txt = v === EMPTY ? `<span class="sub">(not specified)</span>` : `<span class="${italic ? "it" : ""}">${esc(v)}</span>`;
     return `<label data-s="${esc(norm(v))}"><input type="checkbox" data-k="${k}" value="${esc(v)}"${sel.has(v) ? " checked" : ""}>${sw}${txt}<span class="n">${counts.get(v)}</span></label>`;
   }).join("");
   return `<details class="facet${sel.size ? " on" : ""}" data-k="${k}"${state.open[k] ? " open" : ""}>
     <summary><span class="fl">${f.label}</span><span class="fs">${esc(summary)}</span></summary>
     <div class="fbody">
-      ${vals.length > 8 ? `<input type="search" class="ff" data-k="${k}" placeholder="Filtrer la liste…" value="${esc(state.find[k])}">` : ""}
-      <div class="fopts">${opts || '<span class="sub">Aucune valeur</span>'}</div>
-      <div class="factions"><button class="linkbtn" data-act="all" data-k="${k}">tout cocher</button><button class="linkbtn" data-act="none" data-k="${k}">effacer</button></div>
+      ${vals.length > 8 ? `<input type="search" class="ff" data-k="${k}" placeholder="Filter the list…" value="${esc(state.find[k])}">` : ""}
+      <div class="fopts">${opts || '<span class="sub">No values</span>'}</div>
+      <div class="factions"><button class="linkbtn" data-act="all" data-k="${k}">select all</button><button class="linkbtn" data-act="none" data-k="${k}">clear</button></div>
     </div></details>`;
 }
 
@@ -841,8 +871,8 @@ function render(fit) {
   cluster.addLayers(list);
 
   $("stations").innerHTML = stations.length
-    ? stations.map(s => `<li><button data-k="${s.key}"><span class="nm">${esc(s.site || "Site sans nom")}<br><span class="sub">${esc(s.pays)}</span></span><span class="n">${s.rows.length}</span></button></li>`).join("")
-    : `<li class="sub" style="padding:6px 0">Aucune station ne correspond aux filtres.</li>`;
+    ? stations.map(s => `<li><button data-k="${s.key}"><span class="nm">${esc(s.site || "Unnamed site")}<br><span class="sub">${esc(s.pays)}</span></span><span class="n">${s.rows.length}</span></button></li>`).join("")
+    : `<li class="sub" style="padding:6px 0">No station matches the filters.</li>`;
 
   if (fit) fitAll();
 }
@@ -870,22 +900,22 @@ window.nextSrc = img => {
 function popup(s) {
   const items = [...s.rows].sort((a, b) => GORDER[a.group] - GORDER[b.group] || (a.genre + a.espece).localeCompare(b.genre + b.espece));
   const coord = `${s.lat.toFixed(5)}, ${s.lon.toFixed(5)}` + (s.latRaw && !/^-?[\d.,]+$/.test(s.latRaw) ? ` (${esc(s.latRaw)} ${esc(s.lonRaw)})` : "");
-  return `<div class="pp"><h3>${esc(s.site || "Site sans nom")}${s.pays ? ", " + esc(s.pays) : ""}</h3><div class="coord">${coord}</div><ul>` +
+  return `<div class="pp"><h3>${esc(s.site || "Unnamed site")}${s.pays ? ", " + esc(s.pays) : ""}</h3><div class="coord">${coord}</div><ul>` +
     items.map(r => {
-      const name = [r.genre, r.espece].filter(Boolean).join(" ") || r.famille || r.ordre || r.classe || "Taxon non renseigné";
+      const name = [r.genre, r.espece].filter(Boolean).join(" ") || r.famille || r.ordre || r.classe || "Unidentified taxon";
       const meta = [
-        r.date && (r.date + (r.date2 && r.date2 !== r.date ? " – " + r.date2 : "")),
+        (r.date2 || r.date),
         r.prof && (/\d$/.test(r.prof) ? r.prof + " m" : r.prof),
-        r.recolte && "récolte " + r.recolte,
-        r.ident && "identification " + r.ident,
-        r.codeH && "code H " + r.codeH
+        r.recolte && "collected by " + r.recolte,
+        r.ident && "identified by " + r.ident,
+        r.codeH && "H code " + r.codeH
       ].filter(Boolean).map(esc).join(", ");
       const ab = /^\d+$/.test(r.id) ? ` <a href="https://www.algaebase.org/search/species/detail/?species_id=${r.id}" target="_blank" rel="noopener">AlgaeBase</a>` : "";
       const herb = /^HBT/i.test(r.codeHG) ? "hbt" : /^HG/i.test(r.codeHG) ? "hg-h" : "";
-      const hg = r.codeHG ? `<span class="hg ${herb}" title="${herb === "hbt" ? "Planche HBT" : "Planche HG"}">${esc(r.codeHG)}</span>` : "";
-      const cap = esc(`<i>${esc(name)}</i> ${esc(r.auteurs)}<br>${r.codeHG ? esc(r.codeHG) + ", " : ""}${esc(s.site)}${r.date ? ", " + esc(r.date) : ""}`);
+      const hg = r.codeHG ? `<span class="hg ${herb}" title="${herb === "hbt" ? "HBT herbarium sheet" : "HG herbarium sheet"}">${esc(r.codeHG)}</span>` : "";
+      const cap = esc(`<i>${esc(name)}</i> ${esc(r.auteurs)}<br>${r.codeHG ? esc(r.codeHG) + ", " : ""}${esc(s.site)}${(r.date2 || r.date) ? ", " + esc(r.date2 || r.date) : ""}`);
       const th = planchesFor(r).map(l =>
-        `<button class="th" data-cap="${cap}"><img loading="lazy" src="${esc(l[0])}" data-srcs="${esc(JSON.stringify(l))}" data-i="0" onerror="nextSrc(this)" alt="Planche ${esc(r.codeHG)}"></button>`).join("");
+        `<button class="th" data-cap="${cap}"><img loading="lazy" src="${esc(l[0])}" data-srcs="${esc(JSON.stringify(l))}" data-i="0" onerror="nextSrc(this)" alt="Herbarium sheet ${esc(r.codeHG)}"></button>`).join("");
       return `<li style="--c:${GROUPS[r.group].hex}"><div class="sp"><div class="txt"><div class="tx"><i>${esc(name)}</i> <span class="au">${esc(r.auteurs)}</span></div>` +
         (meta ? `<div class="meta">${meta}</div>` : "") + (r.rem ? `<div class="rem">${esc(r.rem)}</div>` : "") + ab +
         `</div>${hg}</div>${th ? `<div class="thumbs">${th}</div>` : ""}</li>`;
@@ -897,11 +927,11 @@ function fitAll() {
   map.fitBounds(L.latLngBounds(stations.map(s => [s.lat, s.lon])).pad(0.15), { maxZoom: 14 });
 }
 
-/* ---------- Visionneuse : planche entière à l'ouverture, puis zoom et déplacement ---------- */
+/* ---------- Sheet viewer: whole sheet on opening, then zoom and pan ---------- */
 let lbList = [], lbIdx = 0;
 const stage = $("lbStage"), lbImg = $("lbImg");
 const Z = { s: 1, x: 0, y: 0, fit: 1, max: 4, w: 0, h: 0, rot: 0 };
-const rotations = new Map();   // rotation mémorisée par planche
+const rotations = new Map();   // rotation remembered per sheet
 const box = () => (Z.rot % 180 ? [Z.h, Z.w] : [Z.w, Z.h]);
 const ptrs = new Map(); let pinch = null, lastTap = 0;
 lbImg.draggable = false;
@@ -919,7 +949,7 @@ function zLimits() {
   const pad = 12;
   const [bw, bh] = box();
   Z.fit = Math.min((stage.clientWidth - 2 * pad) / bw, (stage.clientHeight - 2 * pad) / bh);
-  Z.max = Math.max(Z.fit * 8, 2);                 // jusqu'à 2 fois la taille réelle du scan
+  Z.max = Math.max(Z.fit * 8, 2);                 // up to twice the scan's real size
 }
 function zFit() { if (!Z.w) return; zLimits(); Z.s = Z.fit; zClamp(); zApply(); }
 function zAt(cx, cy, ns) {
@@ -975,7 +1005,7 @@ $("lbRotR").onclick = () => zRotate(90);
 stage.addEventListener("wheel", e => {
   e.preventDefault();
   const [cx, cy] = local(e);
-  const k = e.ctrlKey ? 0.01 : (e.deltaMode === 1 ? 0.05 : 0.0015);   // ctrlKey : pincement sur pavé tactile
+  const k = e.ctrlKey ? 0.01 : (e.deltaMode === 1 ? 0.05 : 0.0015);   // ctrlKey: trackpad pinch
   zAt(cx, cy, Z.s * Math.exp(-e.deltaY * k));
 }, { passive: false });
 stage.addEventListener("dblclick", e => { const [cx, cy] = local(e); zToggle(cx, cy); });
@@ -1074,8 +1104,8 @@ $("dir").onchange = e => {
   const ok = files.filter(f => /\.(jpe?g|png|webp|gif)$/i.test(f.name));
   const tif = files.filter(f => /\.tiff?$/i.test(f.name)).length;
   folderFiles = ok.map(f => ({ name: f.name, key: keyOf(f.name.replace(/\.[^.]+$/, "")), url: URL.createObjectURL(f) }));
-  $("dirLabel").textContent = `${folderFiles.length} planches`;
-  if (tif) setStatus(`${tif} fichiers TIFF ignorés : le navigateur ne sait pas les afficher, convertis-les en JPEG.`, true);
+  $("dirLabel").textContent = `${folderFiles.length} sheets`;
+  if (tif) setStatus(`${tif} TIFF files skipped: browsers cannot display them, please convert them to JPEG.`, true);
   map.closePopup();
 };
 
@@ -1083,18 +1113,18 @@ $("dir").onchange = e => {
 ["dragleave", "drop"].forEach(t => document.addEventListener(t, e => { e.preventDefault(); if (t === "drop" || !e.relatedTarget) document.body.classList.remove("dragging"); }));
 document.addEventListener("drop", e => {
   const f = [...(e.dataTransfer?.files || [])].find(f => /\.csv$/i.test(f.name) || f.type === "text/csv");
-  if (f) parseFile(f); else if (e.dataTransfer?.files?.length) setStatus("Dépose un fichier .csv.", true);
+  if (f) parseFile(f); else if (e.dataTransfer?.files?.length) setStatus("Please drop a .csv file.", true);
 });
 
 function togglePanel(open) {
   $("panel").classList.toggle("open", open);
   $("toggle").setAttribute("aria-expanded", open);
-  $("toggle").textContent = open ? "Voir la carte" : "Filtres et stations";
+  $("toggle").textContent = open ? "Show map" : "Filters and stations";
 }
 $("toggle").onclick = () => togglePanel(!$("panel").classList.contains("open"));
 
 
-/* =================== Téléphone =================== */
+/* =================== Phones =================== */
 const MQ = matchMedia("(max-width: 760px)");
 function isMobile() { return MQ.matches; }
 const ML = document.documentElement.lang === "en"
@@ -1103,7 +1133,7 @@ const ML = document.documentElement.lang === "en"
   : { filters: "Filtres", stations: "Stations", see: n => `Voir ${n} spécimen${n > 1 ? "s" : ""}`,
       filtered: (n, k, t) => `${n} spécimen${n > 1 ? "s" : ""} sur ${t} affichés, ${k} station${k > 1 ? "s" : ""} (filtré)` };
 
-/* Bouton « retour » du téléphone : ferme la fenêtre ouverte au lieu de quitter la page */
+/* Phone back button closes the open layer instead of leaving the page */
 const ovStack = []; let skipPop = 0;
 const ovClosers = { lb: () => { $("lb").hidden = true; }, sheet: () => closeSheet(), panel: () => closePanel() };
 function ovOpen(name) { if (!isMobile()) return; ovStack.push(name); history.pushState({ ov: name }, ""); }
@@ -1121,7 +1151,7 @@ window.addEventListener("popstate", () => {
 });
 new MutationObserver(() => { $("lb").hidden ? ovClosedByUI("lb") : ovOpen("lb"); }).observe($("lb"), { attributes: true, attributeFilter: ["hidden"] });
 
-/* Panneau filtres / stations */
+/* Filters / stations panel */
 document.querySelectorAll("#filters .block").forEach(b => b.classList.add(b.contains($("stations")) ? "b-stations" : "b-filter"));
 function openPanel(mode) {
   document.body.classList.remove("mp-filters", "mp-stations");
@@ -1144,7 +1174,7 @@ $("mClear").onclick = () => {
   buildStaticFilters(); buildFacets(); render(true);
 };
 
-/* Fiche station */
+/* Station sheet */
 const sheet = $("sheet");
 let selKey = null;
 function highlight(key) {
@@ -1162,7 +1192,7 @@ function openSheet(s, fromPanel) {
   sheet.classList.add("on");
   if (!was) fromPanel ? ovReplace("panel", "sheet") : ovOpen("sheet");
   highlight(s.key);
-  // place la station dans la partie de carte visible au-dessus de la fiche
+  // keep the station in the part of the map visible above the sheet
   const top = map.getContainer().getBoundingClientRect().top;
   const visible = window.innerHeight * 0.45 - top;
   const p = map.latLngToContainerPoint([s.lat, s.lon]);
@@ -1198,7 +1228,7 @@ $("sheetClose").onclick = () => { closeSheet(); ovClosedByUI("sheet"); };
 }
 map.on("click", () => { if (isMobile() && sheet.classList.contains("on")) { closeSheet(); ovClosedByUI("sheet"); } });
 
-/* Visionneuse : légende dépliable, balayage pour changer de planche */
+/* Viewer: expandable caption, swipe to change sheet */
 $("lbCap").addEventListener("click", () => { if (isMobile()) $("lbCap").classList.toggle("open"); });
 {
   let sw = null;
@@ -1212,7 +1242,7 @@ $("lbCap").addEventListener("click", () => { if (isMobile()) $("lbCap").classLis
   });
 }
 
-/* Compteurs, en-tête et bouton « Voir N spécimens » */
+/* Counters, header and 'Show N specimens' button */
 function mUpdate() {
   const n = rows.filter(visible).length;
   const active = FACETS.reduce((a, f) => a + state.sel[f.k].size, 0) + (state.q ? 1 : 0) + (state.y0 || state.y1 ? 1 : 0);
@@ -1230,14 +1260,15 @@ let lastStatus = "";
 setStatus = function (msg, err) { setStatusDesktop(msg, err); lastStatus = msg; $("mStat").textContent = msg; $("mStat").classList.toggle("err", !!err); };
 $("mTitle").textContent = CONFIG.title;
 
-/* Passage ordinateur ↔ téléphone (rotation, fenêtre redimensionnée) */
-MQ.addEventListener("change", () => {
+/* Switching between desktop and phone layouts */
+const onLayoutChange = () => {
   closeSheet(); closePanel(); map.closePopup();
   document.body.classList.remove("mp-filters", "mp-stations");
   ovStack.length = 0;
   render();
   setTimeout(() => map.invalidateSize(), 300);
-});
+};
+if (MQ.addEventListener) MQ.addEventListener("change", onLayoutChange); else MQ.addListener(onLayoutChange);   // older Safari
 
 /* ---------- Chargement automatique : donnees.csv (en ligne), sinon données intégrées ---------- */
 function parseText(txt, name) {
@@ -1251,7 +1282,7 @@ function parseText(txt, name) {
     try {
       const res = await fetch(CONFIG.dataFile, { cache: "no-store" });
       if (res.ok) { const t = await res.text(); if (t.trim()) return parseText(t, ""); }
-    } catch (e) { /* pas de fichier en ligne : on passe aux données intégrées */ }
+    } catch (e) { /* no online file: fall back to embedded data */ }
   }
   const emb = document.getElementById("embedded-data");
   if (emb && emb.textContent.trim()) parseText(emb.textContent, "");
